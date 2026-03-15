@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pro Recon</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { color-scheme: light; }
+    html, body { background:#f8fafc; }
+    body { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .card { background: rgba(255,255,255,.92); border:1px solid #e2e8f0; border-radius: 24px; box-shadow: 0 10px 30px rgba(15,23,42,.05); }
+    .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+    .pill { border:1px solid #cbd5e1; background:#fff; border-radius:999px; padding:.4rem .7rem; font-size:.8rem; }
+    .table-wrap::-webkit-scrollbar { height: 10px; width: 10px; }
+    .table-wrap::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
+    .sticky-head thead th { position: sticky; top: 0; z-index: 2; }
+    .loader { width: 42px; height: 42px; border: 4px solid #e2e8f0; border-top-color: #0f172a; border-radius: 999px; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="text-slate-900">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div class="flex flex-col gap-5">
+      <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+        <div>
+          <div class="inline-flex items-center gap-2 rounded-full bg-slate-900 text-white px-3 py-1 text-xs font-semibold tracking-wide uppercase">Pro Recon</div>
+          <h1 class="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight">Recon / Pivot / Filter View</h1>
+          <p class="mt-2 text-sm sm:text-base text-slate-600 max-w-3xl">Simple recon app for reviewing transactions from a published Google Sheet. Includes filters, quick pivots, summaries, category checks, and export of the filtered result set.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button id="refreshBtn" class="rounded-2xl bg-slate-900 text-white px-4 py-2.5 text-sm font-semibold hover:bg-slate-800">Refresh</button>
+          <button id="resetBtn" class="rounded-2xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50">Reset Filters</button>
+          <button id="exportBtn" class="rounded-2xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50">Export Filtered CSV</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-4 gap-5">
+        <div class="xl:col-span-1 card p-5">
+          <h2 class="text-lg font-bold">Filters</h2>
+          <div class="mt-4 space-y-4">
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Search</label>
+              <input id="searchInput" type="text" placeholder="Name, category, account..." class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400" />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Start Date</label>
+                <input id="startDate" type="date" class="w-full rounded-2xl border border-slate-200 px-3 py-3 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">End Date</label>
+                <input id="endDate" type="date" class="w-full rounded-2xl border border-slate-200 px-3 py-3 text-sm" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Transaction</label>
+              <select id="transactionFilter" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white"></select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Account</label>
+              <select id="accountFilter" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white"></select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Category</label>
+              <select id="categoryFilter" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white"></select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Name</label>
+              <select id="nameFilter" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white"></select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Min Amount</label>
+                <input id="minAmount" type="number" step="0.01" placeholder="e.g. -50" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Max Amount</label>
+                <input id="maxAmount" type="number" step="0.01" placeholder="e.g. 100" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Amount Direction</label>
+              <div class="grid grid-cols-3 gap-2">
+                <button class="dirBtn rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium" data-dir="all">All</button>
+                <button class="dirBtn rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium" data-dir="positive">Positive</button>
+                <button class="dirBtn rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium" data-dir="negative">Negative</button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Source</label>
+              <textarea id="sheetUrl" rows="4" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs sm:text-sm">https://docs.google.com/spreadsheets/d/e/2PACX-1vSeVz-E8DAuHATg5i5vbIv4d_VVlj5M5tI00OO-zAJuGX47BhvsOFWG4R_lcRMazOHLGAQqSeDzdn7Z/pub?gid=1966776166&single=true&output=csv</textarea>
+              <p class="mt-2 text-xs text-slate-500">Use the published CSV output link for the tab you want to analyze.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="xl:col-span-3 flex flex-col gap-5">
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+            <div class="card p-5">
+              <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Rows</div>
+              <div id="rowsStat" class="mt-2 text-3xl font-extrabold mono">0</div>
+            </div>
+            <div class="card p-5">
+              <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Net Amount</div>
+              <div id="netStat" class="mt-2 text-3xl font-extrabold mono">$0.00</div>
+            </div>
+            <div class="card p-5">
+              <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Positive</div>
+              <div id="posStat" class="mt-2 text-3xl font-extrabold mono">$0.00</div>
+            </div>
+            <div class="card p-5">
+              <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Negative</div>
+              <div id="negStat" class="mt-2 text-3xl font-extrabold mono">$0.00</div>
+            </div>
+            <div class="card p-5">
+              <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Distinct Names</div>
+              <div id="nameStat" class="mt-2 text-3xl font-extrabold mono">0</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 2xl:grid-cols-3 gap-5">
+            <div class="card p-5 2xl:col-span-2">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h2 class="text-lg font-bold">Monthly Net Trend</h2>
+                  <p class="text-sm text-slate-500">Grouped by transaction month from the filtered set.</p>
+                </div>
+              </div>
+              <div class="mt-4 h-[290px]">
+                <canvas id="trendChart"></canvas>
+              </div>
+            </div>
+
+            <div class="card p-5">
+              <h2 class="text-lg font-bold">Quick Pivot</h2>
+              <div class="mt-4 grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Rows</label>
+                  <select id="pivotRows" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white">
+                    <option value="Category">Category</option>
+                    <option value="Account">Account</option>
+                    <option value="Name">Name</option>
+                    <option value="Transaction">Transaction</option>
+                    <option value="Month">Month</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Values</label>
+                  <select id="pivotMetric" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white">
+                    <option value="sum">Amount Sum</option>
+                    <option value="count">Row Count</option>
+                    <option value="abs">Absolute Sum</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mt-4 space-y-2" id="activeFilters"></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 2xl:grid-cols-2 gap-5">
+            <div class="card p-5">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h2 class="text-lg font-bold">Pivot Table</h2>
+                  <p class="text-sm text-slate-500">Top groups from the current filtered data.</p>
+                </div>
+              </div>
+              <div class="table-wrap overflow-auto mt-4 max-h-[420px]">
+                <table class="min-w-full text-sm sticky-head">
+                  <thead>
+                    <tr>
+                      <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Group</th>
+                      <th class="bg-slate-50 border-b border-slate-200 text-right px-4 py-3 font-semibold">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pivotBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card p-5">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <h2 class="text-lg font-bold">Category / Account Summary</h2>
+                  <p class="text-sm text-slate-500">Fast check on which buckets are driving the filtered set.</p>
+                </div>
+              </div>
+              <div class="table-wrap overflow-auto mt-4 max-h-[420px]">
+                <table class="min-w-full text-sm sticky-head">
+                  <thead>
+                    <tr>
+                      <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Category</th>
+                      <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Account</th>
+                      <th class="bg-slate-50 border-b border-slate-200 text-right px-4 py-3 font-semibold">Rows</th>
+                      <th class="bg-slate-50 border-b border-slate-200 text-right px-4 py-3 font-semibold">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody id="summaryBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-5">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-bold">Transactions</h2>
+                <p class="text-sm text-slate-500">Filtered transaction detail for recon review.</p>
+              </div>
+              <div class="text-xs sm:text-sm text-slate-500">Showing <span id="tableCount" class="font-semibold text-slate-900">0</span> rows</div>
+            </div>
+            <div class="table-wrap overflow-auto mt-4 max-h-[640px] border border-slate-200 rounded-2xl">
+              <table class="min-w-full text-sm sticky-head">
+                <thead>
+                  <tr>
+                    <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Date</th>
+                    <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Transaction</th>
+                    <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Name</th>
+                    <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Account</th>
+                    <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Category</th>
+                    <th class="bg-slate-50 border-b border-slate-200 text-right px-4 py-3 font-semibold">Amount</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/20 backdrop-blur-[1px] flex items-center justify-center z-50">
+    <div class="card px-8 py-7 flex flex-col items-center gap-4">
+      <div class="loader"></div>
+      <div class="text-sm font-medium text-slate-700">Loading published Google Sheet...</div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      raw: [],
+      filtered: [],
+      amountDirection: 'all',
+      chart: null,
+      sort: { key: 'Date', dir: 'desc' }
+    };
+
+    const els = {
+      searchInput: document.getElementById('searchInput'),
+      startDate: document.getElementById('startDate'),
+      endDate: document.getElementById('endDate'),
+      transactionFilter: document.getElementById('transactionFilter'),
+      accountFilter: document.getElementById('accountFilter'),
+      categoryFilter: document.getElementById('categoryFilter'),
+      nameFilter: document.getElementById('nameFilter'),
+      minAmount: document.getElementById('minAmount'),
+      maxAmount: document.getElementById('maxAmount'),
+      sheetUrl: document.getElementById('sheetUrl'),
+      rowsStat: document.getElementById('rowsStat'),
+      netStat: document.getElementById('netStat'),
+      posStat: document.getElementById('posStat'),
+      negStat: document.getElementById('negStat'),
+      nameStat: document.getElementById('nameStat'),
+      tableBody: document.getElementById('tableBody'),
+      tableCount: document.getElementById('tableCount'),
+      pivotBody: document.getElementById('pivotBody'),
+      summaryBody: document.getElementById('summaryBody'),
+      pivotRows: document.getElementById('pivotRows'),
+      pivotMetric: document.getElementById('pivotMetric'),
+      activeFilters: document.getElementById('activeFilters'),
+      loadingOverlay: document.getElementById('loadingOverlay')
+    };
+
+    const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+    function fmtMoney(value) { return currency.format(Number(value || 0)); }
+
+    function parseAmount(value) {
+      if (typeof value === 'number') return value;
+      const s = String(value ?? '').trim();
+      if (!s) return 0;
+      const cleaned = s.replace(/\$/g, '').replace(/,/g, '').replace(/\s/g, '');
+      if (/^\(.*\)$/.test(cleaned)) return -Number(cleaned.replace(/[()]/g, ''));
+      return Number(cleaned);
+    }
+
+    function normalizeRow(row) {
+      const date = String(row.Date || row.date || '').trim();
+      const transaction = String(row.Transaction || row.transaction || '').trim();
+      const name = String(row.Name || row.name || '').trim();
+      const account = String(row.Account || row.account || '').trim();
+      const category = String(row.Category || row.category || '').trim();
+      const amount = parseAmount(row.Amount || row.amount || 0);
+      const isoDate = date ? new Date(date + 'T00:00:00') : null;
+      const month = isoDate && !Number.isNaN(isoDate.getTime())
+        ? `${isoDate.getFullYear()}-${String(isoDate.getMonth() + 1).padStart(2, '0')}`
+        : '';
+
+      return {
+        Date: date,
+        Transaction: transaction,
+        Name: name,
+        Account: account,
+        Category: category,
+        Amount: amount,
+        Month: month
+      };
+    }
+
+    function uniqueSorted(values) {
+      return [...new Set(values.filter(Boolean))].sort((a, b) => String(a).localeCompare(String(b)));
+    }
+
+    function fillSelect(select, values, label) {
+      const current = select.value;
+      select.innerHTML = '';
+      const allOpt = document.createElement('option');
+      allOpt.value = '';
+      allOpt.textContent = `All ${label}`;
+      select.appendChild(allOpt);
+      values.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v;
+        select.appendChild(opt);
+      });
+      if ([...select.options].some(o => o.value === current)) select.value = current;
+    }
+
+    function hydrateFilterOptions() {
+      fillSelect(els.transactionFilter, uniqueSorted(state.raw.map(r => r.Transaction)), 'Transactions');
+      fillSelect(els.accountFilter, uniqueSorted(state.raw.map(r => r.Account)), 'Accounts');
+      fillSelect(els.categoryFilter, uniqueSorted(state.raw.map(r => r.Category)), 'Categories');
+      fillSelect(els.nameFilter, uniqueSorted(state.raw.map(r => r.Name)), 'Names');
+    }
+
+    function getActiveFilters() {
+      return {
+        q: els.searchInput.value.trim().toLowerCase(),
+        start: els.startDate.value,
+        end: els.endDate.value,
+        transaction: els.transactionFilter.value,
+        account: els.accountFilter.value,
+        category: els.categoryFilter.value,
+        name: els.nameFilter.value,
+        min: els.minAmount.value === '' ? null : Number(els.minAmount.value),
+        max: els.maxAmount.value === '' ? null : Number(els.maxAmount.value),
+        dir: state.amountDirection
+      };
+    }
+
+    function applyFilters() {
+      const f = getActiveFilters();
+      state.filtered = state.raw.filter(r => {
+        const haystack = [r.Date, r.Transaction, r.Name, r.Account, r.Category, r.Amount].join(' ').toLowerCase();
+        if (f.q && !haystack.includes(f.q)) return false;
+        if (f.start && r.Date && r.Date < f.start) return false;
+        if (f.end && r.Date && r.Date > f.end) return false;
+        if (f.transaction && r.Transaction !== f.transaction) return false;
+        if (f.account && r.Account !== f.account) return false;
+        if (f.category && r.Category !== f.category) return false;
+        if (f.name && r.Name !== f.name) return false;
+        if (f.min !== null && r.Amount < f.min) return false;
+        if (f.max !== null && r.Amount > f.max) return false;
+        if (f.dir === 'positive' && !(r.Amount > 0)) return false;
+        if (f.dir === 'negative' && !(r.Amount < 0)) return false;
+        return true;
+      });
+
+      state.filtered.sort((a, b) => {
+        const mult = state.sort.dir === 'asc' ? 1 : -1;
+        if (state.sort.key === 'Amount') return (a.Amount - b.Amount) * mult;
+        return String(a[state.sort.key] || '').localeCompare(String(b[state.sort.key] || '')) * mult;
+      });
+
+      renderStats();
+      renderActiveFilters();
+      renderTable();
+      renderPivot();
+      renderSummary();
+      renderTrend();
+    }
+
+    function renderStats() {
+      const rows = state.filtered.length;
+      const net = state.filtered.reduce((s, r) => s + r.Amount, 0);
+      const pos = state.filtered.filter(r => r.Amount > 0).reduce((s, r) => s + r.Amount, 0);
+      const neg = state.filtered.filter(r => r.Amount < 0).reduce((s, r) => s + r.Amount, 0);
+      const distinctNames = new Set(state.filtered.map(r => r.Name).filter(Boolean)).size;
+      els.rowsStat.textContent = rows.toLocaleString();
+      els.netStat.textContent = fmtMoney(net);
+      els.posStat.textContent = fmtMoney(pos);
+      els.negStat.textContent = fmtMoney(neg);
+      els.nameStat.textContent = distinctNames.toLocaleString();
+    }
+
+    function renderActiveFilters() {
+      const f = getActiveFilters();
+      const chips = [];
+      if (f.q) chips.push(`Search: ${f.q}`);
+      if (f.start) chips.push(`Start: ${f.start}`);
+      if (f.end) chips.push(`End: ${f.end}`);
+      if (f.transaction) chips.push(`Transaction: ${f.transaction}`);
+      if (f.account) chips.push(`Account: ${f.account}`);
+      if (f.category) chips.push(`Category: ${f.category}`);
+      if (f.name) chips.push(`Name: ${f.name}`);
+      if (f.min !== null) chips.push(`Min: ${fmtMoney(f.min)}`);
+      if (f.max !== null) chips.push(`Max: ${fmtMoney(f.max)}`);
+      if (f.dir !== 'all') chips.push(`Direction: ${f.dir}`);
+      els.activeFilters.innerHTML = chips.length
+        ? chips.map(c => `<div class="pill">${escapeHtml(c)}</div>`).join('')
+        : '<div class="text-sm text-slate-500">No filters applied.</div>';
+    }
+
+    function renderTable() {
+      els.tableCount.textContent = state.filtered.length.toLocaleString();
+      if (!state.filtered.length) {
+        els.tableBody.innerHTML = `<tr><td colspan="6" class="px-4 py-10 text-center text-slate-500">No rows match the current filters.</td></tr>`;
+        return;
+      }
+
+      els.tableBody.innerHTML = state.filtered.map(r => `
+        <tr class="border-b border-slate-100 hover:bg-slate-50/80">
+          <td class="px-4 py-3 whitespace-nowrap mono">${escapeHtml(r.Date)}</td>
+          <td class="px-4 py-3 whitespace-nowrap">${escapeHtml(r.Transaction || '—')}</td>
+          <td class="px-4 py-3 min-w-[280px]">${escapeHtml(r.Name || '—')}</td>
+          <td class="px-4 py-3 whitespace-nowrap">${escapeHtml(r.Account || '—')}</td>
+          <td class="px-4 py-3 whitespace-nowrap">${escapeHtml(r.Category || '—')}</td>
+          <td class="px-4 py-3 whitespace-nowrap text-right mono font-semibold ${r.Amount < 0 ? 'text-rose-600' : 'text-emerald-700'}">${fmtMoney(r.Amount)}</td>
+        </tr>`).join('');
+    }
+
+    function renderPivot() {
+      const rowKey = els.pivotRows.value;
+      const metric = els.pivotMetric.value;
+      const map = new Map();
+
+      for (const row of state.filtered) {
+        const key = row[rowKey] || 'Unassigned';
+        if (!map.has(key)) map.set(key, { sum: 0, count: 0, abs: 0 });
+        const item = map.get(key);
+        item.sum += row.Amount;
+        item.count += 1;
+        item.abs += Math.abs(row.Amount);
+      }
+
+      const results = [...map.entries()]
+        .map(([group, vals]) => ({ group, value: vals[metric] }))
+        .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+        .slice(0, 100);
+
+      els.pivotBody.innerHTML = results.length
+        ? results.map(r => `
+          <tr class="border-b border-slate-100 hover:bg-slate-50/80">
+            <td class="px-4 py-3">${escapeHtml(r.group)}</td>
+            <td class="px-4 py-3 text-right mono font-semibold">${metric === 'count' ? Number(r.value).toLocaleString() : fmtMoney(r.value)}</td>
+          </tr>`).join('')
+        : `<tr><td colspan="2" class="px-4 py-10 text-center text-slate-500">No pivot data available.</td></tr>`;
+    }
+
+    function renderSummary() {
+      const map = new Map();
+      for (const row of state.filtered) {
+        const key = `${row.Category}|||${row.Account}`;
+        if (!map.has(key)) map.set(key, { category: row.Category || 'Unassigned', account: row.Account || 'Unassigned', rows: 0, amount: 0 });
+        const item = map.get(key);
+        item.rows += 1;
+        item.amount += row.Amount;
+      }
+      const results = [...map.values()].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 100);
+
+      els.summaryBody.innerHTML = results.length
+        ? results.map(r => `
+          <tr class="border-b border-slate-100 hover:bg-slate-50/80">
+            <td class="px-4 py-3">${escapeHtml(r.category)}</td>
+            <td class="px-4 py-3">${escapeHtml(r.account)}</td>
+            <td class="px-4 py-3 text-right mono">${r.rows.toLocaleString()}</td>
+            <td class="px-4 py-3 text-right mono font-semibold ${r.amount < 0 ? 'text-rose-600' : 'text-emerald-700'}">${fmtMoney(r.amount)}</td>
+          </tr>`).join('')
+        : `<tr><td colspan="4" class="px-4 py-10 text-center text-slate-500">No summary data available.</td></tr>`;
+    }
+
+    function renderTrend() {
+      const monthMap = new Map();
+      for (const row of state.filtered) {
+        const key = row.Month || 'Unknown';
+        monthMap.set(key, (monthMap.get(key) || 0) + row.Amount);
+      }
+      const labels = [...monthMap.keys()].sort();
+      const data = labels.map(k => monthMap.get(k));
+      const ctx = document.getElementById('trendChart');
+
+      if (state.chart) state.chart.destroy();
+      state.chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{ label: 'Net Amount', data, borderWidth: 1, borderRadius: 8 }]
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (context) => ` ${fmtMoney(context.raw)}`
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false } },
+            y: {
+              ticks: { callback: (value) => fmtMoney(value) }
+            }
+          }
+        }
+      });
+    }
+
+    function exportFilteredCSV() {
+      const rows = state.filtered.map(r => ({
+        Date: r.Date,
+        Transaction: r.Transaction,
+        Name: r.Name,
+        Account: r.Account,
+        Category: r.Category,
+        Amount: r.Amount
+      }));
+      const csv = Papa.unparse(rows);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pro-recon-filtered.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function resetFilters() {
+      els.searchInput.value = '';
+      els.startDate.value = '';
+      els.endDate.value = '';
+      els.transactionFilter.value = '';
+      els.accountFilter.value = '';
+      els.categoryFilter.value = '';
+      els.nameFilter.value = '';
+      els.minAmount.value = '';
+      els.maxAmount.value = '';
+      state.amountDirection = 'all';
+      updateDirButtons();
+      applyFilters();
+    }
+
+    function updateDirButtons() {
+      document.querySelectorAll('.dirBtn').forEach(btn => {
+        const active = btn.dataset.dir === state.amountDirection;
+        btn.className = `dirBtn rounded-2xl border px-3 py-2 text-sm font-medium ${active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200'}`;
+      });
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    async function loadSheet() {
+      try {
+        els.loadingOverlay.style.display = 'flex';
+        const url = els.sheetUrl.value.trim();
+        const result = await new Promise((resolve, reject) => {
+          Papa.parse(url, {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: resolve,
+            error: reject
+          });
+        });
+
+        state.raw = (result.data || [])
+          .map(normalizeRow)
+          .filter(r => r.Date || r.Name || r.Account || r.Category || r.Amount);
+
+        hydrateFilterOptions();
+        updateDirButtons();
+        applyFilters();
+      } catch (err) {
+        console.error(err);
+        alert('Could not load the published Google Sheet. Make sure the tab is published as CSV and the URL is correct.');
+      } finally {
+        els.loadingOverlay.style.display = 'none';
+      }
+    }
+
+    ['input', 'change'].forEach(evt => {
+      [
+        els.searchInput,
+        els.startDate,
+        els.endDate,
+        els.transactionFilter,
+        els.accountFilter,
+        els.categoryFilter,
+        els.nameFilter,
+        els.minAmount,
+        els.maxAmount,
+        els.pivotRows,
+        els.pivotMetric
+      ].forEach(el => el.addEventListener(evt, applyFilters));
+    });
+
+    document.querySelectorAll('.dirBtn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.amountDirection = btn.dataset.dir;
+        updateDirButtons();
+        applyFilters();
+      });
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', loadSheet);
+    document.getElementById('resetBtn').addEventListener('click', resetFilters);
+    document.getElementById('exportBtn').addEventListener('click', exportFilteredCSV);
+
+    loadSheet();
+  </script>
+</body>
+</html>
