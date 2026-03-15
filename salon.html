@@ -12,232 +12,435 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root { color-scheme: light; }
-    html, body { background:#f8fafc; }
-    body { font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .card { background: rgba(255,255,255,.92); border:1px solid #e2e8f0; border-radius: 24px; box-shadow: 0 10px 30px rgba(15,23,42,.05); }
-    .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
-    .pill { border:1px solid #cbd5e1; background:#fff; border-radius:999px; padding:.4rem .7rem; font-size:.8rem; }
-    .table-wrap::-webkit-scrollbar { height: 10px; width: 10px; }
-    .table-wrap::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
-    .sticky-head thead th { position: sticky; top: 0; z-index: 2; }
-    .loader { width: 42px; height: 42px; border: 4px solid #e2e8f0; border-top-color: #0f172a; border-radius: 999px; animation: spin .8s linear infinite; }
+    html, body {
+      margin: 0;
+      background: #f3f6fb;
+      color: #0f172a;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .shell {
+      max-width: 1680px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .card {
+      background: rgba(255,255,255,.98);
+      border: 1px solid #dbe4ef;
+      border-radius: 24px;
+      box-shadow: 0 10px 30px rgba(15,23,42,.05);
+    }
+    .soft-card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 18px;
+    }
+    .mono {
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+    }
+    .label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 8px;
+    }
+    .field, .select, .textarea {
+      width: 100%;
+      border: 1px solid #d7e0ea;
+      background: #fff;
+      border-radius: 16px;
+      padding: 13px 14px;
+      font-size: 14px;
+      color: #0f172a;
+      box-sizing: border-box;
+      outline: none;
+    }
+    .field:focus, .select:focus, .textarea:focus {
+      border-color: #94a3b8;
+      box-shadow: 0 0 0 3px rgba(15,23,42,.06);
+    }
+    .btn {
+      border-radius: 16px;
+      padding: 11px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid #d7e0ea;
+      background: #fff;
+      color: #0f172a;
+      cursor: pointer;
+    }
+    .btn-primary {
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }
+    .dir-btn.active {
+      background: #0f172a;
+      color: #fff;
+      border-color: #0f172a;
+    }
+    .kpi {
+      padding: 20px;
+      min-height: 122px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+      border: 1px solid #dbe4ef;
+      border-radius: 22px;
+    }
+    .kpi-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .kpi-value {
+      font-size: clamp(1.8rem, 2vw, 2.5rem);
+      line-height: 1;
+      font-weight: 800;
+      color: #0f172a;
+      margin-top: 10px;
+    }
+    .subtext {
+      font-size: 12px;
+      color: #64748b;
+    }
+    .table-shell {
+      border: 1px solid #dbe4ef;
+      border-radius: 20px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .table-scroll {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .table-scroll::-webkit-scrollbar { height: 12px; width: 12px; }
+    .table-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+    .data-table {
+      width: 100%;
+      min-width: 980px;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 14px;
+    }
+    .data-table th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f8fafc;
+      color: #475569;
+      padding: 15px 16px;
+      text-align: left;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: .08em;
+      font-weight: 800;
+      border-bottom: 1px solid #dbe4ef;
+      white-space: nowrap;
+    }
+    .data-table td {
+      padding: 15px 16px;
+      border-bottom: 1px solid #eef2f7;
+      vertical-align: middle;
+      background: #fff;
+      font-size: 14px;
+    }
+    .data-table tbody tr:hover td { background: #f8fbff; }
+    .right { text-align: right; }
+    .name-cell { min-width: 300px; font-weight: 700; }
+    .muted { color: #64748b; }
+    .amount-positive { color: #047857; font-weight: 800; }
+    .amount-negative { color: #be123c; font-weight: 800; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 11px;
+      border-radius: 999px;
+      border: 1px solid #dbe4ef;
+      background: #fff;
+      font-size: 12px;
+      color: #334155;
+      margin: 0 6px 6px 0;
+    }
+    .mobile-cards { display: none; }
+    .mobile-row {
+      background: #fff;
+      border: 1px solid #dbe4ef;
+      border-radius: 18px;
+      padding: 14px;
+    }
+    .loader {
+      width: 42px;
+      height: 42px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #0f172a;
+      border-radius: 999px;
+      animation: spin .8s linear infinite;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 1100px) {
+      .shell { padding: 14px; }
+      .desktop-grid { grid-template-columns: 1fr !important; }
+      .content-grid, .summary-grid, .kpi-grid { grid-template-columns: 1fr 1fr !important; }
+      .mobile-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 760px) {
+      .shell { padding: 10px; }
+      .page-title { font-size: 1.8rem; }
+      .content-grid, .summary-grid, .kpi-grid, .mobile-filters { grid-template-columns: 1fr !important; }
+      .desktop-table { display: none; }
+      .mobile-cards { display: grid; gap: 12px; }
+      .actions { width: 100%; }
+      .actions .btn { flex: 1 1 auto; }
+      .card { border-radius: 18px; }
+      .kpi { min-height: auto; }
+    }
   </style>
 </head>
-<body class="text-slate-900">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+<body>
+  <div class="shell">
     <div class="flex flex-col gap-5">
-      <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div class="inline-flex items-center gap-2 rounded-full bg-slate-900 text-white px-3 py-1 text-xs font-semibold tracking-wide uppercase">Pro Recon</div>
-          <h1 class="mt-3 text-3xl sm:text-4xl font-extrabold tracking-tight">Recon / Pivot / Filter View</h1>
-          <p class="mt-2 text-sm sm:text-base text-slate-600 max-w-3xl">Simple recon app for reviewing transactions from a published Google Sheet. Includes filters, quick pivots, summaries, category checks, and export of the filtered result set.</p>
+          <div class="inline-flex items-center gap-2 rounded-full bg-slate-900 text-white px-3 py-1 text-[11px] font-semibold tracking-[0.16em] uppercase">Pro Recon</div>
+          <h1 class="page-title mt-3 text-4xl font-extrabold tracking-tight">Recon Filter View</h1>
+          <p class="mt-2 text-sm sm:text-base text-slate-600 max-w-4xl">Built for only six columns: Date, Transaction, Name, Account, Category, Amount. Larger layout, larger type, wider tables, and a better mobile view.</p>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <button id="refreshBtn" class="rounded-2xl bg-slate-900 text-white px-4 py-2.5 text-sm font-semibold hover:bg-slate-800">Refresh</button>
-          <button id="resetBtn" class="rounded-2xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50">Reset Filters</button>
-          <button id="exportBtn" class="rounded-2xl bg-white border border-slate-200 px-4 py-2.5 text-sm font-semibold hover:bg-slate-50">Export Filtered CSV</button>
+        <div class="actions flex flex-wrap gap-2">
+          <button id="refreshBtn" class="btn btn-primary">Refresh</button>
+          <button id="resetBtn" class="btn">Reset</button>
+          <button id="exportBtn" class="btn">Export CSV</button>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 xl:grid-cols-4 gap-5">
-        <div class="xl:col-span-1 card p-5">
-          <h2 class="text-lg font-bold">Filters</h2>
-          <div class="mt-4 space-y-4">
+      <div class="card p-4 sm:p-5">
+        <div class="flex flex-col gap-4">
+          <div class="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Search</label>
-              <input id="searchInput" type="text" placeholder="Name, category, account..." class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400" />
+              <h2 class="text-lg font-bold">Filters</h2>
+              <p class="subtext mt-1">Top filter bar instead of a cramped side rail.</p>
             </div>
+            <div class="text-xs text-slate-500">Published Google Sheet CSV source</div>
+          </div>
 
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Start Date</label>
-                <input id="startDate" type="date" class="w-full rounded-2xl border border-slate-200 px-3 py-3 text-sm" />
-              </div>
-              <div>
-                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">End Date</label>
-                <input id="endDate" type="date" class="w-full rounded-2xl border border-slate-200 px-3 py-3 text-sm" />
-              </div>
+          <div class="grid mobile-filters grid-cols-2 xl:grid-cols-6 gap-3">
+            <div class="xl:col-span-2">
+              <div class="label">Search</div>
+              <input id="searchInput" type="text" placeholder="Search any field..." class="field" />
             </div>
-
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Transaction</label>
-              <select id="transactionFilter" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white"></select>
+              <div class="label">Start Date</div>
+              <input id="startDate" type="date" class="field" />
             </div>
-
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Account</label>
-              <select id="accountFilter" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white"></select>
+              <div class="label">End Date</div>
+              <input id="endDate" type="date" class="field" />
             </div>
-
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Category</label>
-              <select id="categoryFilter" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white"></select>
+              <div class="label">Transaction</div>
+              <select id="transactionFilter" class="select"></select>
             </div>
-
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Name</label>
-              <select id="nameFilter" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white"></select>
+              <div class="label">Account</div>
+              <select id="accountFilter" class="select"></select>
             </div>
-
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Min Amount</label>
-                <input id="minAmount" type="number" step="0.01" placeholder="e.g. -50" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
-              </div>
-              <div>
-                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Max Amount</label>
-                <input id="maxAmount" type="number" step="0.01" placeholder="e.g. 100" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm" />
-              </div>
-            </div>
-
             <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Amount Direction</label>
+              <div class="label">Category</div>
+              <select id="categoryFilter" class="select"></select>
+            </div>
+            <div>
+              <div class="label">Name</div>
+              <select id="nameFilter" class="select"></select>
+            </div>
+            <div>
+              <div class="label">Min Amount</div>
+              <input id="minAmount" type="number" step="0.01" placeholder="Min" class="field" />
+            </div>
+            <div>
+              <div class="label">Max Amount</div>
+              <input id="maxAmount" type="number" step="0.01" placeholder="Max" class="field" />
+            </div>
+            <div>
+              <div class="label">Direction</div>
               <div class="grid grid-cols-3 gap-2">
-                <button class="dirBtn rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium" data-dir="all">All</button>
-                <button class="dirBtn rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium" data-dir="positive">Positive</button>
-                <button class="dirBtn rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium" data-dir="negative">Negative</button>
+                <button class="btn dir-btn active" data-dir="all">All</button>
+                <button class="btn dir-btn" data-dir="positive">In</button>
+                <button class="btn dir-btn" data-dir="negative">Out</button>
               </div>
             </div>
-
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Source</label>
-              <textarea id="sheetUrl" rows="4" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-xs sm:text-sm">https://docs.google.com/spreadsheets/d/e/2PACX-1vSeVz-E8DAuHATg5i5vbIv4d_VVlj5M5tI00OO-zAJuGX47BhvsOFWG4R_lcRMazOHLGAQqSeDzdn7Z/pub?gid=1966776166&single=true&output=csv</textarea>
-              <p class="mt-2 text-xs text-slate-500">Use the published CSV output link for the tab you want to analyze.</p>
+            <div class="xl:col-span-2">
+              <div class="label">Published CSV Link</div>
+              <textarea id="sheetUrl" rows="2" class="textarea">https://docs.google.com/spreadsheets/d/e/2PACX-1vSeVz-E8DAuHATg5i5vbIv4d_VVlj5M5tI00OO-zAJuGX47BhvsOFWG4R_lcRMazOHLGAQqSeDzdn7Z/pub?gid=1966776166&single=true&output=csv</textarea>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="xl:col-span-3 flex flex-col gap-5">
-          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
-            <div class="card p-5">
-              <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Rows</div>
-              <div id="rowsStat" class="mt-2 text-3xl font-extrabold mono">0</div>
+      <div class="kpi-grid grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="kpi">
+          <div>
+            <div class="kpi-title">Rows</div>
+            <div id="rowsStat" class="kpi-value mono">0</div>
+          </div>
+          <div class="subtext">Filtered transactions</div>
+        </div>
+        <div class="kpi">
+          <div>
+            <div class="kpi-title">Net Amount</div>
+            <div id="netStat" class="kpi-value mono">$0.00</div>
+          </div>
+          <div class="subtext">Positive less negative</div>
+        </div>
+        <div class="kpi">
+          <div>
+            <div class="kpi-title">Money In</div>
+            <div id="posStat" class="kpi-value mono">$0.00</div>
+          </div>
+          <div class="subtext">Positive amounts only</div>
+        </div>
+        <div class="kpi">
+          <div>
+            <div class="kpi-title">Money Out</div>
+            <div id="negStat" class="kpi-value mono">$0.00</div>
+          </div>
+          <div class="subtext">Negative amounts only</div>
+        </div>
+      </div>
+
+      <div class="content-grid grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_420px] gap-5">
+        <div class="card p-4 sm:p-5">
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h2 class="text-xl font-bold">Transactions</h2>
+              <p class="subtext mt-1">Main recon detail table with larger spacing and type.</p>
             </div>
-            <div class="card p-5">
-              <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Net Amount</div>
-              <div id="netStat" class="mt-2 text-3xl font-extrabold mono">$0.00</div>
-            </div>
-            <div class="card p-5">
-              <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Positive</div>
-              <div id="posStat" class="mt-2 text-3xl font-extrabold mono">$0.00</div>
-            </div>
-            <div class="card p-5">
-              <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Negative</div>
-              <div id="negStat" class="mt-2 text-3xl font-extrabold mono">$0.00</div>
-            </div>
-            <div class="card p-5">
-              <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Distinct Names</div>
-              <div id="nameStat" class="mt-2 text-3xl font-extrabold mono">0</div>
+            <div class="text-sm text-slate-500">Showing <span id="tableCount" class="font-bold text-slate-900">0</span> rows</div>
+          </div>
+
+          <div id="activeFilters" class="mt-4"></div>
+
+          <div class="table-shell mt-4 desktop-table">
+            <div class="table-scroll max-h-[720px]">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Transaction</th>
+                    <th>Name</th>
+                    <th>Account</th>
+                    <th>Category</th>
+                    <th class="right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+              </table>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 2xl:grid-cols-3 gap-5">
-            <div class="card p-5 2xl:col-span-2">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <h2 class="text-lg font-bold">Monthly Net Trend</h2>
-                  <p class="text-sm text-slate-500">Grouped by transaction month from the filtered set.</p>
-                </div>
-              </div>
-              <div class="mt-4 h-[290px]">
-                <canvas id="trendChart"></canvas>
+          <div id="mobileTableCards" class="mobile-cards mt-4"></div>
+        </div>
+
+        <div class="flex flex-col gap-5">
+          <div class="card p-4 sm:p-5">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h2 class="text-lg font-bold">Monthly Trend</h2>
+                <p class="subtext mt-1">Net amount by month.</p>
               </div>
             </div>
-
-            <div class="card p-5">
-              <h2 class="text-lg font-bold">Quick Pivot</h2>
-              <div class="mt-4 grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Rows</label>
-                  <select id="pivotRows" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white">
-                    <option value="Category">Category</option>
-                    <option value="Account">Account</option>
-                    <option value="Name">Name</option>
-                    <option value="Transaction">Transaction</option>
-                    <option value="Month">Month</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">Values</label>
-                  <select id="pivotMetric" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm bg-white">
-                    <option value="sum">Amount Sum</option>
-                    <option value="count">Row Count</option>
-                    <option value="abs">Absolute Sum</option>
-                  </select>
-                </div>
-              </div>
-              <div class="mt-4 space-y-2" id="activeFilters"></div>
+            <div class="mt-4 h-[320px]">
+              <canvas id="trendChart"></canvas>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 2xl:grid-cols-2 gap-5">
-            <div class="card p-5">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <h2 class="text-lg font-bold">Pivot Table</h2>
-                  <p class="text-sm text-slate-500">Top groups from the current filtered data.</p>
-                </div>
+          <div class="card p-4 sm:p-5">
+            <div class="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <h2 class="text-lg font-bold">Quick Pivot</h2>
+                <p class="subtext mt-1">Simple grouped review.</p>
               </div>
-              <div class="table-wrap overflow-auto mt-4 max-h-[420px]">
-                <table class="min-w-full text-sm sticky-head">
+            </div>
+            <div class="grid grid-cols-2 gap-3 mt-4">
+              <div>
+                <div class="label">Rows</div>
+                <select id="pivotRows" class="select">
+                  <option value="Category">Category</option>
+                  <option value="Account">Account</option>
+                  <option value="Name">Name</option>
+                  <option value="Transaction">Transaction</option>
+                  <option value="Month">Month</option>
+                </select>
+              </div>
+              <div>
+                <div class="label">Values</div>
+                <select id="pivotMetric" class="select">
+                  <option value="sum">Amount Sum</option>
+                  <option value="count">Row Count</option>
+                  <option value="abs">Absolute Sum</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-shell mt-4 desktop-table">
+              <div class="table-scroll max-h-[360px]">
+                <table class="data-table" style="min-width: 100%;">
                   <thead>
                     <tr>
-                      <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Group</th>
-                      <th class="bg-slate-50 border-b border-slate-200 text-right px-4 py-3 font-semibold">Value</th>
+                      <th>Group</th>
+                      <th class="right">Value</th>
                     </tr>
                   </thead>
                   <tbody id="pivotBody"></tbody>
                 </table>
               </div>
             </div>
+            <div id="pivotMobile" class="mobile-cards mt-4"></div>
+          </div>
+        </div>
+      </div>
 
-            <div class="card p-5">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <h2 class="text-lg font-bold">Category / Account Summary</h2>
-                  <p class="text-sm text-slate-500">Fast check on which buckets are driving the filtered set.</p>
-                </div>
-              </div>
-              <div class="table-wrap overflow-auto mt-4 max-h-[420px]">
-                <table class="min-w-full text-sm sticky-head">
-                  <thead>
-                    <tr>
-                      <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Category</th>
-                      <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Account</th>
-                      <th class="bg-slate-50 border-b border-slate-200 text-right px-4 py-3 font-semibold">Rows</th>
-                      <th class="bg-slate-50 border-b border-slate-200 text-right px-4 py-3 font-semibold">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody id="summaryBody"></tbody>
-                </table>
-              </div>
+      <div class="summary-grid grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div class="card p-4 sm:p-5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-bold">Category / Account Summary</h2>
+              <p class="subtext mt-1">Fast recon summary by category and account.</p>
             </div>
           </div>
-
-          <div class="card p-5">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div>
-                <h2 class="text-lg font-bold">Transactions</h2>
-                <p class="text-sm text-slate-500">Filtered transaction detail for recon review.</p>
-              </div>
-              <div class="text-xs sm:text-sm text-slate-500">Showing <span id="tableCount" class="font-semibold text-slate-900">0</span> rows</div>
-            </div>
-            <div class="table-wrap overflow-auto mt-4 max-h-[640px] border border-slate-200 rounded-2xl">
-              <table class="min-w-full text-sm sticky-head">
+          <div class="table-shell mt-4 desktop-table">
+            <div class="table-scroll max-h-[420px]">
+              <table class="data-table">
                 <thead>
                   <tr>
-                    <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Date</th>
-                    <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Transaction</th>
-                    <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Name</th>
-                    <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Account</th>
-                    <th class="bg-slate-50 border-b border-slate-200 text-left px-4 py-3 font-semibold">Category</th>
-                    <th class="bg-slate-50 border-b border-slate-200 text-right px-4 py-3 font-semibold">Amount</th>
+                    <th>Category</th>
+                    <th>Account</th>
+                    <th class="right">Rows</th>
+                    <th class="right">Amount</th>
                   </tr>
                 </thead>
-                <tbody id="tableBody"></tbody>
+                <tbody id="summaryBody"></tbody>
               </table>
             </div>
+          </div>
+          <div id="summaryMobile" class="mobile-cards mt-4"></div>
+        </div>
+
+        <div class="card p-4 sm:p-5">
+          <div>
+            <h2 class="text-lg font-bold">What Changed</h2>
+            <p class="subtext mt-1">This version pushes the layout wider and gives the transaction table more room.</p>
+          </div>
+          <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-700">
+            <div class="soft-card p-4">Filters moved to a top bar so the table is not squeezed.</div>
+            <div class="soft-card p-4">Larger tables, larger fonts, more white space.</div>
+            <div class="soft-card p-4">Desktop prioritizes the transaction table first.</div>
+            <div class="soft-card p-4">Mobile switches to clean stacked cards instead of tiny tables.</div>
           </div>
         </div>
       </div>
@@ -275,7 +478,6 @@
       netStat: document.getElementById('netStat'),
       posStat: document.getElementById('posStat'),
       negStat: document.getElementById('negStat'),
-      nameStat: document.getElementById('nameStat'),
       tableBody: document.getElementById('tableBody'),
       tableCount: document.getElementById('tableCount'),
       pivotBody: document.getElementById('pivotBody'),
@@ -283,11 +485,13 @@
       pivotRows: document.getElementById('pivotRows'),
       pivotMetric: document.getElementById('pivotMetric'),
       activeFilters: document.getElementById('activeFilters'),
-      loadingOverlay: document.getElementById('loadingOverlay')
+      loadingOverlay: document.getElementById('loadingOverlay'),
+      mobileTableCards: document.getElementById('mobileTableCards'),
+      pivotMobile: document.getElementById('pivotMobile'),
+      summaryMobile: document.getElementById('summaryMobile')
     };
 
     const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
     function fmtMoney(value) { return currency.format(Number(value || 0)); }
 
     function parseAmount(value) {
@@ -383,9 +587,8 @@
       });
 
       state.filtered.sort((a, b) => {
-        const mult = state.sort.dir === 'asc' ? 1 : -1;
-        if (state.sort.key === 'Amount') return (a.Amount - b.Amount) * mult;
-        return String(a[state.sort.key] || '').localeCompare(String(b[state.sort.key] || '')) * mult;
+        if (state.sort.key === 'Amount') return b.Amount - a.Amount;
+        return String(b[state.sort.key] || '').localeCompare(String(a[state.sort.key] || ''));
       });
 
       renderStats();
@@ -401,12 +604,10 @@
       const net = state.filtered.reduce((s, r) => s + r.Amount, 0);
       const pos = state.filtered.filter(r => r.Amount > 0).reduce((s, r) => s + r.Amount, 0);
       const neg = state.filtered.filter(r => r.Amount < 0).reduce((s, r) => s + r.Amount, 0);
-      const distinctNames = new Set(state.filtered.map(r => r.Name).filter(Boolean)).size;
       els.rowsStat.textContent = rows.toLocaleString();
       els.netStat.textContent = fmtMoney(net);
       els.posStat.textContent = fmtMoney(pos);
       els.negStat.textContent = fmtMoney(neg);
-      els.nameStat.textContent = distinctNames.toLocaleString();
     }
 
     function renderActiveFilters() {
@@ -423,26 +624,43 @@
       if (f.max !== null) chips.push(`Max: ${fmtMoney(f.max)}`);
       if (f.dir !== 'all') chips.push(`Direction: ${f.dir}`);
       els.activeFilters.innerHTML = chips.length
-        ? chips.map(c => `<div class="pill">${escapeHtml(c)}</div>`).join('')
-        : '<div class="text-sm text-slate-500">No filters applied.</div>';
+        ? chips.map(c => `<span class="chip">${escapeHtml(c)}</span>`).join('')
+        : '<span class="chip">No filters applied</span>';
     }
 
     function renderTable() {
       els.tableCount.textContent = state.filtered.length.toLocaleString();
       if (!state.filtered.length) {
-        els.tableBody.innerHTML = `<tr><td colspan="6" class="px-4 py-10 text-center text-slate-500">No rows match the current filters.</td></tr>`;
+        els.tableBody.innerHTML = `<tr><td colspan="6" style="padding:28px; text-align:center; color:#64748b;">No rows match the current filters.</td></tr>`;
+        els.mobileTableCards.innerHTML = `<div class="mobile-row text-center text-slate-500">No rows match the current filters.</div>`;
         return;
       }
 
       els.tableBody.innerHTML = state.filtered.map(r => `
-        <tr class="border-b border-slate-100 hover:bg-slate-50/80">
-          <td class="px-4 py-3 whitespace-nowrap mono">${escapeHtml(r.Date)}</td>
-          <td class="px-4 py-3 whitespace-nowrap">${escapeHtml(r.Transaction || '—')}</td>
-          <td class="px-4 py-3 min-w-[280px]">${escapeHtml(r.Name || '—')}</td>
-          <td class="px-4 py-3 whitespace-nowrap">${escapeHtml(r.Account || '—')}</td>
-          <td class="px-4 py-3 whitespace-nowrap">${escapeHtml(r.Category || '—')}</td>
-          <td class="px-4 py-3 whitespace-nowrap text-right mono font-semibold ${r.Amount < 0 ? 'text-rose-600' : 'text-emerald-700'}">${fmtMoney(r.Amount)}</td>
+        <tr>
+          <td class="mono">${escapeHtml(r.Date)}</td>
+          <td class="muted">${escapeHtml(r.Transaction || '—')}</td>
+          <td class="name-cell">${escapeHtml(r.Name || '—')}</td>
+          <td>${escapeHtml(r.Account || '—')}</td>
+          <td>${escapeHtml(r.Category || '—')}</td>
+          <td class="right mono ${r.Amount < 0 ? 'amount-negative' : 'amount-positive'}">${fmtMoney(r.Amount)}</td>
         </tr>`).join('');
+
+      els.mobileTableCards.innerHTML = state.filtered.slice(0, 250).map(r => `
+        <div class="mobile-row">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-sm font-bold">${escapeHtml(r.Name || '—')}</div>
+              <div class="text-xs text-slate-500 mt-1">${escapeHtml(r.Date || '—')}</div>
+            </div>
+            <div class="text-sm mono ${r.Amount < 0 ? 'amount-negative' : 'amount-positive'}">${fmtMoney(r.Amount)}</div>
+          </div>
+          <div class="grid grid-cols-1 gap-2 mt-3 text-sm">
+            <div class="soft-card p-3"><span class="text-slate-400 text-[11px] uppercase font-bold tracking-wide">Transaction</span><div class="mt-1">${escapeHtml(r.Transaction || '—')}</div></div>
+            <div class="soft-card p-3"><span class="text-slate-400 text-[11px] uppercase font-bold tracking-wide">Account</span><div class="mt-1">${escapeHtml(r.Account || '—')}</div></div>
+            <div class="soft-card p-3"><span class="text-slate-400 text-[11px] uppercase font-bold tracking-wide">Category</span><div class="mt-1">${escapeHtml(r.Category || '—')}</div></div>
+          </div>
+        </div>`).join('');
     }
 
     function renderPivot() {
@@ -466,11 +684,21 @@
 
       els.pivotBody.innerHTML = results.length
         ? results.map(r => `
-          <tr class="border-b border-slate-100 hover:bg-slate-50/80">
-            <td class="px-4 py-3">${escapeHtml(r.group)}</td>
-            <td class="px-4 py-3 text-right mono font-semibold">${metric === 'count' ? Number(r.value).toLocaleString() : fmtMoney(r.value)}</td>
+          <tr>
+            <td>${escapeHtml(r.group)}</td>
+            <td class="right mono">${metric === 'count' ? Number(r.value).toLocaleString() : fmtMoney(r.value)}</td>
           </tr>`).join('')
-        : `<tr><td colspan="2" class="px-4 py-10 text-center text-slate-500">No pivot data available.</td></tr>`;
+        : `<tr><td colspan="2" style="padding:28px; text-align:center; color:#64748b;">No pivot data available.</td></tr>`;
+
+      els.pivotMobile.innerHTML = results.length
+        ? results.slice(0, 30).map(r => `
+          <div class="mobile-row">
+            <div class="flex items-center justify-between gap-3">
+              <div class="text-sm font-semibold">${escapeHtml(r.group)}</div>
+              <div class="text-sm mono">${metric === 'count' ? Number(r.value).toLocaleString() : fmtMoney(r.value)}</div>
+            </div>
+          </div>`).join('')
+        : `<div class="mobile-row text-center text-slate-500">No pivot data available.</div>`;
     }
 
     function renderSummary() {
@@ -486,13 +714,29 @@
 
       els.summaryBody.innerHTML = results.length
         ? results.map(r => `
-          <tr class="border-b border-slate-100 hover:bg-slate-50/80">
-            <td class="px-4 py-3">${escapeHtml(r.category)}</td>
-            <td class="px-4 py-3">${escapeHtml(r.account)}</td>
-            <td class="px-4 py-3 text-right mono">${r.rows.toLocaleString()}</td>
-            <td class="px-4 py-3 text-right mono font-semibold ${r.amount < 0 ? 'text-rose-600' : 'text-emerald-700'}">${fmtMoney(r.amount)}</td>
+          <tr>
+            <td>${escapeHtml(r.category)}</td>
+            <td>${escapeHtml(r.account)}</td>
+            <td class="right mono">${r.rows.toLocaleString()}</td>
+            <td class="right mono ${r.amount < 0 ? 'amount-negative' : 'amount-positive'}">${fmtMoney(r.amount)}</td>
           </tr>`).join('')
-        : `<tr><td colspan="4" class="px-4 py-10 text-center text-slate-500">No summary data available.</td></tr>`;
+        : `<tr><td colspan="4" style="padding:28px; text-align:center; color:#64748b;">No summary data available.</td></tr>`;
+
+      els.summaryMobile.innerHTML = results.length
+        ? results.slice(0, 40).map(r => `
+          <div class="mobile-row">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="text-sm font-bold">${escapeHtml(r.category)}</div>
+                <div class="text-xs text-slate-500 mt-1">${escapeHtml(r.account)}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-sm mono ${r.amount < 0 ? 'amount-negative' : 'amount-positive'}">${fmtMoney(r.amount)}</div>
+                <div class="text-xs text-slate-500 mt-1">${r.rows.toLocaleString()} rows</div>
+              </div>
+            </div>
+          </div>`).join('')
+        : `<div class="mobile-row text-center text-slate-500">No summary data available.</div>`;
     }
 
     function renderTrend() {
@@ -516,17 +760,11 @@
           maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
-            tooltip: {
-              callbacks: {
-                label: (context) => ` ${fmtMoney(context.raw)}`
-              }
-            }
+            tooltip: { callbacks: { label: (context) => ` ${fmtMoney(context.raw)}` } }
           },
           scales: {
-            x: { grid: { display: false } },
-            y: {
-              ticks: { callback: (value) => fmtMoney(value) }
-            }
+            x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } },
+            y: { ticks: { callback: (value) => fmtMoney(value) } }
           }
         }
       });
@@ -567,9 +805,8 @@
     }
 
     function updateDirButtons() {
-      document.querySelectorAll('.dirBtn').forEach(btn => {
-        const active = btn.dataset.dir === state.amountDirection;
-        btn.className = `dirBtn rounded-2xl border px-3 py-2 text-sm font-medium ${active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200'}`;
+      document.querySelectorAll('.dir-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.dir === state.amountDirection);
       });
     }
 
@@ -598,7 +835,7 @@
 
         state.raw = (result.data || [])
           .map(normalizeRow)
-          .filter(r => r.Date || r.Name || r.Account || r.Category || r.Amount);
+          .filter(r => r.Date || r.Transaction || r.Name || r.Account || r.Category || r.Amount);
 
         hydrateFilterOptions();
         updateDirButtons();
@@ -627,7 +864,7 @@
       ].forEach(el => el.addEventListener(evt, applyFilters));
     });
 
-    document.querySelectorAll('.dirBtn').forEach(btn => {
+    document.querySelectorAll('.dir-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         state.amountDirection = btn.dataset.dir;
         updateDirButtons();
