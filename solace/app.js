@@ -85,7 +85,9 @@
 
   const nightModeBtn = el("nightModeBtn");
   const musicPlayBtn = el("musicPlayBtn");
-  const musicStatus = el("musicStatus");
+  const spotifyEmbedWrap = el("spotifyEmbedWrap");
+  const spotifyEmbed = el("spotifyEmbed");
+  const spotifyEmptyState = el("spotifyEmptyState");
 
   // ---------- settings persistence ----------
 
@@ -270,6 +272,8 @@
     avatarInitialEl.textContent = settings.name.charAt(0).toUpperCase() || "S";
     document.title = settings.deviceName || "Solace";
 
+    renderSpotifyEmbed();
+
     contextLineEl.textContent = getContextualSentence();
 
     const weather = getWeatherSummary();
@@ -327,7 +331,6 @@
     document.querySelectorAll(".dock-item").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.view === view);
     });
-    musicStatus.textContent = "Opens in a new tab — Solace stays right here.";
   }
 
   dock.addEventListener("click", (e) => {
@@ -360,6 +363,33 @@
       window.open(tile.dataset.url, "_blank", "noopener");
     });
   });
+
+  function parseSpotifyEmbedUrl(input) {
+    if (!input) return null;
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+    // spotify:playlist:<id> URI form
+    let m = trimmed.match(/^spotify:(playlist|album|track|artist|show|episode):([a-zA-Z0-9]+)/i);
+    if (m) return `https://open.spotify.com/embed/${m[1]}/${m[2]}`;
+    // open.spotify.com/[embed/]<type>/<id>[?...] — covers regular share
+    // links, embed links, and links with a trailing ?si=... token.
+    m = trimmed.match(/open\.spotify\.com\/(?:embed\/)?(playlist|album|track|artist|show|episode)\/([a-zA-Z0-9]+)/i);
+    if (m) return `https://open.spotify.com/embed/${m[1]}/${m[2]}`;
+    return null;
+  }
+
+  function renderSpotifyEmbed() {
+    const embedUrl = parseSpotifyEmbedUrl(settings.spotifyUrl);
+    if (embedUrl) {
+      if (spotifyEmbed.src !== embedUrl) spotifyEmbed.src = embedUrl;
+      spotifyEmbedWrap.hidden = false;
+      spotifyEmptyState.hidden = true;
+    } else {
+      spotifyEmbed.removeAttribute("src");
+      spotifyEmbedWrap.hidden = true;
+      spotifyEmptyState.hidden = false;
+    }
+  }
 
   function openSpotify() {
     const url = settings.spotifyUrl && settings.spotifyUrl.trim()
@@ -546,11 +576,16 @@
     };
 
     if (action === "music") {
-      briefingText.textContent = "Opening Spotify.";
-      await speak("Opening Spotify.");
-      openSpotify();
-      await pause(600);
+      const hasEmbed = !!parseSpotifyEmbedUrl(settings.spotifyUrl);
+      briefingText.textContent = hasEmbed ? "Starting your morning playlist." : "Opening Spotify.";
+      await speak(briefingText.textContent);
       closeBriefing();
+      if (hasEmbed) {
+        showView("music");
+      } else {
+        await pause(300);
+        openSpotify();
+      }
     } else if (urls[action]) {
       window.open(urls[action], "_blank", "noopener");
       closeBriefing();

@@ -487,6 +487,13 @@ select:focus-visible,
 
 .panel-center { text-align: center; display: flex; flex-direction: column; align-items: center; }
 
+.panel-music-inner { max-width: 480px; width: 100%; }
+
+.spotify-embed-wrap { width: 100%; }
+.spotify-embed-wrap iframe { display: block; }
+
+#spotifyEmptyState { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+
 .panel-close {
   position: absolute;
   top: 18px;
