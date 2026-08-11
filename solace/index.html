@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Solace</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='none' stroke='%23e8b87a' stroke-width='1.6'/%3E%3Ccircle cx='12' cy='12' r='3' fill='%23e8b87a'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div id="wallpaper" class="wallpaper"></div>
+  <div class="grain"></div>
+  <div class="wallpaper-scrim"></div>
+
+  <div id="app" class="app">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="wordmark">
+        <span class="mark"><span class="mark-dot"></span></span>
+        <span class="wordmark-text">SOLACE <span class="wordmark-thin">OS</span></span>
+      </div>
+      <div class="status-cluster">
+        <span class="status-pill" id="statusTemp">64°</span>
+        <button class="icon-btn" id="settingsBtn" aria-label="Settings" title="Settings">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6">
+            <circle cx="12" cy="12" r="3.2"/>
+            <path d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.66 6.34l-1.42 1.42M7.76 16.24l-1.42 1.42M17.66 17.66l-1.42-1.42M7.76 7.76 6.34 6.34"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main ambient view -->
+    <main class="stage">
+      <section class="hero">
+        <div class="clock-block">
+          <div class="clock" id="clock">7:00<span class="ampm" id="clockAmpm">AM</span></div>
+          <div class="date" id="dateLine">Tuesday, May 20</div>
+          <div class="greeting" id="greeting">Good morning, Chayla.</div>
+          <div class="context-line" id="contextLine">It's going to be a beautiful day. Ready when you are.</div>
+        </div>
+      </section>
+
+      <section class="side">
+        <button class="briefing-card" id="startMorningCard">
+          <div class="briefing-top">
+            <div class="orb" aria-hidden="true"><div class="orb-ring idle-breathe"></div></div>
+            <div class="briefing-copy">
+              <div class="briefing-title">Morning Briefing</div>
+              <div class="briefing-sub">Weather, calendar, then music or video.</div>
+              <div class="briefing-duration">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+                ~45 sec
+              </div>
+            </div>
+          </div>
+          <div class="start-btn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            Start Morning
+          </div>
+        </button>
+
+        <div class="preview-row">
+          <div class="preview-card">
+            <div class="preview-label">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.4 5.6l-1.4 1.4M7 17l-1.4 1.4M18.4 18.4 17 17M7 7 5.6 5.6"/></svg>
+              Weather
+            </div>
+            <div class="preview-main" id="weatherTempPreview">64°</div>
+            <div class="preview-sub" id="weatherCondPreview">Clear</div>
+            <div class="preview-foot" id="weatherHighLowPreview">High 76° · Low 58°</div>
+          </div>
+          <div class="preview-card">
+            <div class="preview-label">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9.5h17M8 3v3M16 3v3"/></svg>
+              Next event
+            </div>
+            <div class="preview-main" id="nextEventTime">9:00 AM</div>
+            <div class="preview-sub" id="nextEventTitle">Morning Appointment</div>
+            <div class="preview-foot" id="nextEventLeaveBy">Leave by 8:25 AM</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Panels (Weather / Calendar / Music / Watch) -->
+    <section class="panel" id="panel-weather" hidden>
+      <div class="panel-inner">
+        <button class="panel-close" data-close-panel aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <h2 class="panel-title">Your day</h2>
+        <div class="panel-weather-hero">
+          <div class="panel-weather-temp" id="panelWeatherTemp">64°</div>
+          <div class="panel-weather-cond" id="panelWeatherCond">Clear</div>
+        </div>
+        <div class="panel-weather-range" id="panelWeatherRange">High 76° · Low 58° · 30% chance of rain</div>
+        <p class="panel-note" id="panelWeatherNote">Clear this morning with a warm afternoon.</p>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-calendar" hidden>
+      <div class="panel-inner">
+        <button class="panel-close" data-close-panel aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <h2 class="panel-title">Up next</h2>
+        <ul class="event-list" id="eventList"></ul>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-music" hidden>
+      <div class="panel-inner panel-center">
+        <button class="panel-close" data-close-panel aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <h2 class="panel-title">Play something</h2>
+        <p class="panel-note">Music while you get ready.</p>
+        <button class="pill-btn pill-btn-large" id="musicPlayBtn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          Open Spotify
+        </button>
+        <div class="mock-note" id="musicStatus">Opens in a new tab — Solace stays right here.</div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-watch" hidden>
+      <div class="panel-inner panel-center">
+        <button class="panel-close" data-close-panel aria-label="Close">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+        <h2 class="panel-title">Watch something</h2>
+        <div class="watch-grid">
+          <button class="watch-tile" data-url="https://www.youtube.com">YouTube</button>
+          <button class="watch-tile" data-url="https://www.netflix.com">Netflix</button>
+          <button class="watch-tile" data-url="https://www.peacocktv.com">Peacock</button>
+        </div>
+        <div class="mock-note">Opens in a new tab — Solace stays right here.</div>
+      </div>
+    </section>
+
+    <!-- Bottom dock -->
+    <nav class="dock" id="dock">
+      <button class="dock-item active" data-view="morning">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M21.5 12h-2.2M4.7 12H2.5M18.7 5.3l-1.55 1.55M6.85 17.15l-1.55 1.55M18.7 18.7l-1.55-1.55M6.85 6.85 5.3 5.3"/></svg>
+        <span>Morning</span>
+      </button>
+      <button class="dock-item" data-view="weather">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 18.5a4 4 0 0 1-.8-7.92 5 5 0 0 1 9.66-2A4.5 4.5 0 0 1 17.5 18.5H7Z"/></svg>
+        <span>Weather</span>
+      </button>
+      <button class="dock-item" data-view="calendar">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9.5h17M8 3v3M16 3v3"/></svg>
+        <span>Calendar</span>
+      </button>
+      <button class="dock-item" data-view="music">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>
+        <span>Music</span>
+      </button>
+      <button class="dock-item" data-view="watch">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="5" width="19" height="13" rx="2.2"/><path d="M8 21.5h8"/></svg>
+        <span>Watch</span>
+      </button>
+    </nav>
+
+    <!-- Bottom-left profile / quote strip (ambient) -->
+    <div class="bottom-strip">
+      <div class="profile-chip">
+        <span class="avatar" id="avatarInitial">C</span>
+        <span id="profileName">Chayla</span>
+      </div>
+      <div class="quote-line" id="quoteLine">Your day is already unfolding. Let's make it a good one.</div>
+      <button class="ghost-btn" id="nightModeBtn">Night mode</button>
+    </div>
+  </div>
+
+  <!-- Morning briefing overlay -->
+  <div class="briefing-overlay" id="briefingOverlay" hidden>
+    <div class="briefing-stage">
+      <div class="briefing-orb" id="briefingOrb"><div class="orb-ring big"></div><div class="orb-ring big delay"></div></div>
+      <div class="briefing-text" id="briefingText">Good morning, Chayla.</div>
+      <div class="briefing-media-choices" id="briefingChoices" hidden>
+        <button class="choice-btn" data-action="music">Play Music</button>
+        <button class="choice-btn" data-action="youtube">YouTube</button>
+        <button class="choice-btn" data-action="netflix">Netflix</button>
+        <button class="choice-btn" data-action="peacock">Peacock</button>
+        <button class="choice-btn choice-btn-quiet" data-action="none">Not Now</button>
+      </div>
+      <button class="briefing-close" id="briefingClose" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Settings overlay -->
+  <div class="settings-overlay" id="settingsOverlay" hidden>
+    <div class="settings-panel">
+      <div class="settings-header">
+        <h2>Settings</h2>
+        <button class="icon-btn" id="settingsClose" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+
+      <div class="settings-body">
+        <label class="field">
+          <span class="field-label">Name</span>
+          <input type="text" id="settingName" placeholder="Chayla" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Device name</span>
+          <input type="text" id="settingDevice" placeholder="Solace" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Spotify playlist link</span>
+          <input type="url" id="settingSpotifyUrl" placeholder="https://open.spotify.com/playlist/..." />
+        </label>
+
+        <div class="field">
+          <span class="field-label">Wallpaper</span>
+          <div class="wallpaper-row">
+            <button class="pill-btn" id="wallpaperUploadBtn">Upload photo</button>
+            <button class="ghost-btn" id="wallpaperResetBtn">Use default</button>
+          </div>
+          <input type="file" id="wallpaperInput" accept="image/*" hidden />
+          <div class="field-hint" id="wallpaperHint"></div>
+        </div>
+
+        <label class="field">
+          <span class="field-label">Voice</span>
+          <select id="settingVoice"></select>
+        </label>
+
+        <div class="field field-row">
+          <span class="field-label">Speak briefing aloud</span>
+          <button class="toggle" id="toggleVoice" role="switch" aria-checked="true"><span class="toggle-knob"></span></button>
+        </div>
+
+        <div class="field field-row">
+          <span class="field-label">Morning auto-start</span>
+          <button class="toggle" id="toggleAutoStart" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
+        </div>
+
+        <label class="field">
+          <span class="field-label">Morning start time</span>
+          <input type="time" id="settingStartTime" value="07:00" />
+        </label>
+
+        <button class="pill-btn pill-btn-large" id="settingsSaveBtn">Save</button>
+        <div class="field-hint" id="dataSourceHint">Checking for live updates…</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="vendor/supabase.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
