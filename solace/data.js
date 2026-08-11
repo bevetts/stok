@@ -112,3 +112,32 @@ function getContextualSentence() {
   }
   return "It's going to be a beautiful day. Ready when you are.";
 }
+
+const QUOTES = {
+  morning: [
+    "Your day is already unfolding. Let's make it a good one.",
+    "Small steps this morning become big wins by tonight.",
+    "Breathe in the calm — you've got this.",
+    "Today is a blank page. Write something beautiful.",
+  ],
+  afternoon: [
+    "You're halfway through — keep your pace gentle and steady.",
+    "A pause now is not a setback. It's wisdom.",
+    "The afternoon light is on your side.",
+    "One thing at a time. That's always enough.",
+  ],
+  evening: [
+    "The day did its part. Now let yourself unwind.",
+    "Rest is not a reward — it's a requirement.",
+    "Tomorrow will meet you when it's ready.",
+    "You showed up today. That matters.",
+  ],
+};
+
+function getQuoteLine() {
+  const hour = new Date().getHours();
+  const period = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+  const pool = QUOTES[period];
+  const dayIndex = new Date().getDate() % pool.length;
+  return pool[dayIndex];
+}

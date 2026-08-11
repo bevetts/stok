@@ -42,6 +42,7 @@
   const dateLineEl = el("dateLine");
   const greetingEl = el("greeting");
   const contextLineEl = el("contextLine");
+  const quoteLineEl = el("quoteLine");
   const statusTempEl = el("statusTemp");
   const avatarInitialEl = el("avatarInitial");
   const profileNameEl = el("profileName");
@@ -49,6 +50,8 @@
   const weatherTempPreview = el("weatherTempPreview");
   const weatherCondPreview = el("weatherCondPreview");
   const weatherHighLowPreview = el("weatherHighLowPreview");
+  const weatherWidget = el("weatherWidget");
+  const calendarWidget = el("calendarWidget");
   const nextEventTime = el("nextEventTime");
   const nextEventTitle = el("nextEventTitle");
   const nextEventLeaveBy = el("nextEventLeaveBy");
@@ -67,6 +70,8 @@
   const briefingText = el("briefingText");
   const briefingChoices = el("briefingChoices");
   const briefingClose = el("briefingClose");
+  const briefingProgressBar = el("briefingProgressBar");
+  const briefingProgressLabel = el("briefingProgressLabel");
 
   const timerBadge = el("timerBadge");
   const timerBadgeText = el("timerBadgeText");
@@ -303,7 +308,7 @@
     feedHint.textContent = "Removed. Refreshing today's events…";
     await triggerCalendarSync();
     await loadFromSupabase();
-    renderStaticContent();
+    renderStaticContent({ animateWidgets: true });
   });
 
   addFeedBtn.addEventListener("click", async () => {
@@ -335,7 +340,7 @@
     await triggerCalendarSync();
     await loadCalendarFeeds();
     await loadFromSupabase();
-    renderStaticContent();
+    renderStaticContent({ animateWidgets: true });
     feedHint.textContent = "From the Calendar app: calendar name → Share Calendar → Public Calendar, then copy the link.";
   });
 
@@ -394,20 +399,33 @@
   }
 
   function markDataLoading() {
-    // The bundled fallback numbers are plausible-looking real weather —
-    // without this, "still loading" and "loaded but stuck on fallback"
-    // look identical. Cleared by renderStaticContent() once the first
-    // Supabase attempt (success or failure) resolves.
-    statusTempEl.textContent = "…";
-    weatherTempPreview.textContent = "…";
-    weatherCondPreview.textContent = "Checking…";
-    weatherHighLowPreview.textContent = "";
-    nextEventTime.textContent = "…";
-    nextEventTitle.textContent = "Checking your day…";
-    nextEventLeaveBy.textContent = "";
+    statusTempEl.classList.add("skeleton");
+    weatherTempPreview.classList.add("skeleton");
+    weatherCondPreview.classList.add("skeleton");
+    weatherHighLowPreview.classList.add("skeleton");
+    nextEventTime.classList.add("skeleton");
+    nextEventTitle.classList.add("skeleton");
+    nextEventLeaveBy.classList.add("skeleton");
   }
 
-  function renderStaticContent() {
+  function clearDataLoading() {
+    [statusTempEl, weatherTempPreview, weatherCondPreview, weatherHighLowPreview,
+     nextEventTime, nextEventTitle, nextEventLeaveBy].forEach((node) => {
+      node.classList.remove("skeleton");
+    });
+  }
+
+  function pulseWidgets() {
+    [weatherWidget, calendarWidget].forEach((widget) => {
+      if (!widget) return;
+      widget.classList.remove("data-refresh");
+      void widget.offsetWidth; // reflow so the animation can replay
+      widget.classList.add("data-refresh");
+      widget.addEventListener("animationend", () => widget.classList.remove("data-refresh"), { once: true });
+    });
+  }
+
+  function renderStaticContent({ animateWidgets = false } = {}) {
     profileNameEl.textContent = settings.name;
     avatarInitialEl.textContent = settings.name.charAt(0).toUpperCase() || "S";
     document.title = settings.deviceName || "Solace";
@@ -415,6 +433,9 @@
     renderSpotifyEmbed();
 
     contextLineEl.textContent = getContextualSentence();
+    if (quoteLineEl) quoteLineEl.textContent = getQuoteLine();
+
+    clearDataLoading();
 
     const weather = getWeatherSummary();
     statusTempEl.textContent = `${weather.currentTemp}°`;
@@ -460,6 +481,8 @@
         eventList.appendChild(li);
       });
     }
+
+    if (animateWidgets) pulseWidgets();
   }
 
   // ---------- view / dock navigation ----------
@@ -656,11 +679,30 @@
 
   let briefingActive = false;
 
+  const BRIEFING_STAGE_LABELS = {
+    greeting: "Greeting",
+    weather: "Weather",
+    calendar: "Calendar",
+    media: "Your choice",
+  };
+
+  function setBriefingProgress(stageIndex, totalStages) {
+    const pct = Math.round(((stageIndex + 1) / totalStages) * 100);
+    if (briefingProgressBar) briefingProgressBar.style.width = `${pct}%`;
+  }
+
+  function resetBriefingProgress() {
+    if (briefingProgressBar) briefingProgressBar.style.width = "0%";
+    if (briefingProgressLabel) briefingProgressLabel.textContent = "Morning briefing";
+  }
+
   async function runMorningBriefing() {
     briefingActive = true;
     briefingOverlay.hidden = false;
     briefingChoices.hidden = true;
     briefingText.textContent = "One moment…";
+    briefingText.className = "briefing-text stage-visible";
+    resetBriefingProgress();
     registerInteraction();
 
     // Refresh before speaking rather than trusting whatever the last
@@ -675,18 +717,29 @@
 
     const stages = getMorningBriefing(settings.name);
 
-    for (const stage of stages) {
+    for (let i = 0; i < stages.length; i++) {
+      const stage = stages[i];
       if (!briefingActive) return;
-      briefingText.style.opacity = 0;
-      await pause(150);
+
+      if (briefingProgressLabel) {
+        briefingProgressLabel.textContent = BRIEFING_STAGE_LABELS[stage.stage] || "Morning briefing";
+      }
+      setBriefingProgress(i, stages.length);
+
+      briefingText.classList.remove("stage-visible");
+      briefingText.classList.add("stage-enter");
+      await pause(200);
       briefingText.textContent = stage.text;
-      briefingText.style.opacity = 1;
+      briefingText.classList.remove("stage-enter");
+      briefingText.classList.add("stage-visible");
       await speakStage(stage.text);
       if (!briefingActive) return;
       await pause(500);
     }
 
     if (!briefingActive) return;
+    setBriefingProgress(stages.length, stages.length);
+    if (briefingProgressLabel) briefingProgressLabel.textContent = "All set";
     briefingChoices.hidden = false;
   }
 
@@ -694,6 +747,7 @@
     briefingActive = false;
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     briefingOverlay.hidden = true;
+    resetBriefingProgress();
     registerInteraction();
   }
 
@@ -1192,13 +1246,13 @@
     showView("morning");
 
     await withTimeout(loadFromSupabase(), 8000);
-    renderStaticContent();
+    renderStaticContent({ animateWidgets: true });
     renderClock();
     updateDataSourceHint();
 
     setInterval(async () => {
       await withTimeout(loadFromSupabase(), 8000);
-      renderStaticContent();
+      renderStaticContent({ animateWidgets: true });
       updateDataSourceHint();
     }, 5 * 60 * 1000);
   }
