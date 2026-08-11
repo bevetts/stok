@@ -141,3 +141,26 @@ function getQuoteLine() {
   const dayIndex = new Date().getDate() % pool.length;
   return pool[dayIndex];
 }
+
+function getGlanceLine() {
+  const next = getNextEvent();
+  if (next && next.leaveBy) {
+    return `Leave by ${next.leaveBy} · ${next.title} at ${next.time}`;
+  }
+  if (next) {
+    return `${next.title} at ${next.time}`;
+  }
+  const weather = getWeatherSummary();
+  return `${weather.currentTemp}° and ${weather.condition.toLowerCase()} — a light morning ahead.`;
+}
+
+function getMorningCloseText(name) {
+  const lines = [
+    `You're set, ${name}. Go gently.`,
+    `The day can wait. You've got this, ${name}.`,
+    `Ready when you are, ${name}.`,
+  ];
+  return lines[new Date().getDate() % lines.length];
+}
+
+const DEFAULT_ROUTINE = ["Water", "Vitamins", "Pack bag"];

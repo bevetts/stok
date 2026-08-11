@@ -43,6 +43,12 @@
           <div class="date" id="dateLine">Tuesday, May 20</div>
           <div class="greeting" id="greeting">Good morning, Chayla.</div>
           <div class="context-line" id="contextLine">It's going to be a beautiful day. Ready when you are.</div>
+          <div class="leave-by-pill" id="leaveByPill" hidden>
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s7-4.5 7-11a7 7 0 1 0-14 0c0 6.5 7 11 7 11z"/><circle cx="12" cy="11" r="2.5"/></svg>
+            <span id="leaveByPillText">Leave by 8:25 AM</span>
+          </div>
+          <div class="glance-line" id="glanceLine"></div>
+          <button class="vanity-start-btn ghost-btn" id="vanityStartBtn" type="button">Start briefing</button>
           <button class="timer-badge" id="timerBadge" hidden>
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>
             <span id="timerBadgeText">4:32</span>
@@ -69,6 +75,14 @@
             Start Morning
           </div>
         </button>
+
+        <div class="routine-card" id="routineCard">
+          <div class="routine-header">
+            <h3 class="routine-title">Ready checklist</h3>
+            <span class="routine-progress" id="routineProgress">0/3</span>
+          </div>
+          <ul class="routine-list" id="routineList"></ul>
+        </div>
 
         <div class="preview-row">
           <div class="preview-card widget-card" id="weatherWidget">
@@ -347,6 +361,36 @@
         </section>
 
         <section class="settings-section">
+          <h3 class="settings-section-title">Display</h3>
+          <label class="field">
+            <span class="field-label">Layout preset</span>
+            <select id="settingDisplayMode">
+              <option value="standard">Standard — full dashboard</option>
+              <option value="vanity">Vanity — leave-by focus, high contrast</option>
+              <option value="ambient">Ambient — minimal idle glance</option>
+            </select>
+          </label>
+          <div class="field field-row">
+            <span class="field-label">Idle photo slideshow</span>
+            <button class="toggle" id="toggleSlideshow" role="switch" aria-checked="false"><span class="toggle-knob"></span></button>
+          </div>
+          <div class="field field-row">
+            <span class="field-label">Morning close ritual</span>
+            <button class="toggle" id="toggleMorningClose" role="switch" aria-checked="true"><span class="toggle-knob"></span></button>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h3 class="settings-section-title">Morning routine</h3>
+          <p class="field-hint field-hint-top">Daily checklist on the morning view. Resets each day.</p>
+          <ul class="feed-list" id="routineSettingsList"></ul>
+          <div class="feed-add-row">
+            <input type="text" id="newRoutineItem" placeholder="e.g. Water, vitamins, pack bag" class="feed-url-input" />
+            <button class="pill-btn" id="addRoutineBtn">Add</button>
+          </div>
+        </section>
+
+        <section class="settings-section">
           <h3 class="settings-section-title">Appearance</h3>
           <div class="field">
             <span class="field-label">Wallpaper</span>
@@ -356,6 +400,15 @@
           </div>
           <input type="file" id="wallpaperInput" accept="image/*" hidden />
           <div class="field-hint" id="wallpaperHint"></div>
+          </div>
+          <div class="field">
+            <span class="field-label">Idle slideshow photos</span>
+            <div class="wallpaper-row">
+              <button class="pill-btn" id="slideshowUploadBtn">Add photos</button>
+              <button class="ghost-btn" id="slideshowClearBtn">Clear all</button>
+            </div>
+            <input type="file" id="slideshowInput" accept="image/*" multiple hidden />
+            <div class="field-hint" id="slideshowHint">Cycle through these when idle (if slideshow is on).</div>
           </div>
         </section>
 
