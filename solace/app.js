@@ -145,10 +145,82 @@
       dataUrl = null;
     }
     if (dataUrl) {
-      wallpaperEl.style.setProperty("--custom-wallpaper", `url(${dataUrl})`);
-      wallpaperEl.classList.add("custom");
+      applyWallpaper(dataUrl);
     } else {
       wallpaperEl.classList.remove("custom");
+      wallpaperEl.style.removeProperty("--custom-wallpaper");
+    }
+  }
+
+  function applyWallpaper(dataUrl) {
+    wallpaperEl.style.setProperty("--custom-wallpaper", `url("${dataUrl}")`);
+    wallpaperEl.classList.add("custom");
+  }
+
+  function hasSavedWallpaper() {
+    try {
+      return !!localStorage.getItem(WALLPAPER_KEY);
+    } catch {
+      return false;
+    }
+  }
+
+  function updateWallpaperHint() {
+    if (!wallpaperHint) return;
+    if (hasSavedWallpaper()) {
+      wallpaperHint.textContent = "Custom wallpaper saved on this device.";
+    } else {
+      wallpaperHint.textContent = "Upload a photo — it will be resized to fit local storage.";
+    }
+  }
+
+  /**
+   * Camera photos as raw data URLs routinely blow past localStorage's ~5 MB
+   * per-origin cap. Resize + JPEG compress so a typical wallpaper lands around
+   * 200–600 KB and actually survives a reload.
+   */
+  function compressWallpaperFile(file, { maxEdge = 1920, quality = 0.82 } = {}) {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        const width = Math.max(1, Math.round(img.width * scale));
+        const height = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas not supported"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        if (!dataUrl || dataUrl.length < 32) {
+          reject(new Error("Compression failed"));
+          return;
+        }
+        resolve(dataUrl);
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Couldn't decode image"));
+      };
+
+      img.src = objectUrl;
+    });
+  }
+
+  function persistWallpaper(dataUrl) {
+    try {
+      localStorage.setItem(WALLPAPER_KEY, dataUrl);
+      return localStorage.getItem(WALLPAPER_KEY) === dataUrl;
+    } catch {
+      return false;
     }
   }
 
@@ -827,7 +899,7 @@
     toggleVoice.setAttribute("aria-checked", String(settings.voiceEnabled));
     toggleAutoStart.setAttribute("aria-checked", String(settings.autoStart));
     settingVoice.value = settings.voiceURI || "";
-    wallpaperHint.textContent = "";
+    updateWallpaperHint();
     updateDataSourceHint();
     loadCalendarFeeds();
     settingsOverlay.hidden = false;
@@ -854,36 +926,42 @@
 
   wallpaperUploadBtn.addEventListener("click", () => wallpaperInput.click());
 
-  wallpaperInput.addEventListener("change", () => {
+  wallpaperInput.addEventListener("change", async () => {
     const file = wallpaperInput.files[0];
+    wallpaperInput.value = "";
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result;
-      try {
-        localStorage.setItem(WALLPAPER_KEY, dataUrl);
-        wallpaperHint.textContent = "Wallpaper saved.";
-      } catch {
+    registerInteraction();
+    wallpaperHint.textContent = "Preparing photo…";
+    wallpaperUploadBtn.disabled = true;
+
+    try {
+      const dataUrl = await compressWallpaperFile(file);
+      applyWallpaper(dataUrl);
+
+      if (persistWallpaper(dataUrl)) {
+        wallpaperHint.textContent = "Wallpaper saved on this device.";
+      } else {
         wallpaperHint.textContent =
-          "That photo is too large to save locally, but it's applied for this session.";
+          "Wallpaper applied for now, but it couldn't be saved — try a smaller photo.";
       }
-      wallpaperEl.style.setProperty("--custom-wallpaper", `url(${dataUrl})`);
-      wallpaperEl.classList.add("custom");
-    };
-    reader.onerror = () => {
-      wallpaperHint.textContent = "Couldn't read that photo — try a different file.";
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      wallpaperHint.textContent = "Couldn't use that photo — try a different image.";
+    } finally {
+      wallpaperUploadBtn.disabled = false;
+    }
   });
 
   wallpaperResetBtn.addEventListener("click", () => {
+    registerInteraction();
     try {
       localStorage.removeItem(WALLPAPER_KEY);
     } catch {
       /* ignore */
     }
     wallpaperEl.classList.remove("custom");
+    wallpaperEl.style.removeProperty("--custom-wallpaper");
+    updateWallpaperHint();
     wallpaperHint.textContent = "Restored the default wallpaper.";
   });
 
