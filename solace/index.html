@@ -237,6 +237,17 @@
         </label>
 
         <div class="field">
+          <span class="field-label">Calendars</span>
+          <ul class="feed-list" id="calendarFeedList"></ul>
+          <div class="feed-add-row">
+            <input type="text" id="newFeedLabel" placeholder="Label (e.g. Chayla)" class="feed-label-input" />
+            <input type="url" id="newFeedUrl" placeholder="webcal:// or https:// calendar link" class="feed-url-input" />
+            <button class="pill-btn" id="addFeedBtn">Add</button>
+          </div>
+          <div class="field-hint" id="feedHint">From the Calendar app: calendar name → Share Calendar → Public Calendar, then copy the link.</div>
+        </div>
+
+        <div class="field">
           <span class="field-label">Wallpaper</span>
           <div class="wallpaper-row">
             <button class="pill-btn" id="wallpaperUploadBtn">Upload photo</button>

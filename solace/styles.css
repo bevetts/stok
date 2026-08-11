@@ -743,6 +743,72 @@ select:focus-visible,
 
 .field-hint { font-size: 12px; color: var(--ink-faint); }
 
+.feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feed-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--surface-border-soft);
+}
+
+.feed-list-empty {
+  font-size: 13px;
+  color: var(--ink-faint);
+  padding: 4px 2px;
+}
+
+.feed-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.feed-label { font-size: 13.5px; color: var(--ink); }
+.feed-status { font-size: 11.5px; color: var(--ink-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed-status.feed-status-error { color: #e08a8a; }
+
+.feed-remove-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  background: transparent;
+  border: 1px solid var(--surface-border-soft);
+  transition: background 0.25s var(--ease), color 0.25s var(--ease);
+}
+.feed-remove-btn:hover { color: var(--ink); background: rgba(244,239,232,0.12); }
+
+.feed-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.feed-label-input { flex: 1; min-width: 110px; }
+.feed-url-input { flex: 2; min-width: 160px; }
+
+.feed-label-input, .feed-url-input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--surface-border);
+  font-size: 13px;
+  color: var(--ink);
+}
+.feed-label-input:focus, .feed-url-input:focus { outline: 1px solid var(--accent); }
+
 .toggle {
   width: 44px;
   height: 26px;

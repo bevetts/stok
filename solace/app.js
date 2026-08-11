@@ -73,6 +73,11 @@
   const settingName = el("settingName");
   const settingDevice = el("settingDevice");
   const settingSpotifyUrl = el("settingSpotifyUrl");
+  const calendarFeedList = el("calendarFeedList");
+  const newFeedLabel = el("newFeedLabel");
+  const newFeedUrl = el("newFeedUrl");
+  const addFeedBtn = el("addFeedBtn");
+  const feedHint = el("feedHint");
   const settingVoice = el("settingVoice");
   const settingStartTime = el("settingStartTime");
   const toggleVoice = el("toggleVoice");
@@ -211,6 +216,122 @@
       })
       .eq("id", 1);
     if (error) console.warn("Solace: couldn't save settings to Supabase — kept locally only.", error);
+  }
+
+  // ---------- calendar feeds (onboarding: add/remove without a migration) ----------
+
+  async function loadCalendarFeeds() {
+    const result = await withTimeout(
+      db
+        .from("solace_calendar_feeds")
+        .select("id, label, ics_url, enabled, last_synced_at, last_sync_error")
+        .order("created_at", { ascending: true }),
+      8000
+    );
+    if (!result) {
+      console.warn("Solace: loading calendar feeds timed out.");
+      return;
+    }
+    if (result.error) {
+      console.warn("Solace: couldn't load calendar feeds.", result.error);
+      return;
+    }
+    renderFeedList(result.data || []);
+  }
+
+  function feedStatusText(feed) {
+    if (feed.last_sync_error) return { text: `Error: ${feed.last_sync_error}`, isError: true };
+    if (!feed.last_synced_at) return { text: "Not synced yet", isError: false };
+    const mins = Math.round((Date.now() - new Date(feed.last_synced_at).getTime()) / 60000);
+    const when = mins < 1 ? "just now" : mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)} hr ago`;
+    return { text: `Synced ${when}`, isError: false };
+  }
+
+  function renderFeedList(feeds) {
+    calendarFeedList.innerHTML = "";
+    if (!feeds.length) {
+      const li = document.createElement("li");
+      li.className = "feed-list-empty";
+      li.textContent = "No calendars added yet.";
+      calendarFeedList.appendChild(li);
+      return;
+    }
+    feeds.forEach((feed) => {
+      const status = feedStatusText(feed);
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span class="feed-info">
+          <span class="feed-label">${feed.label}</span>
+          <span class="feed-status${status.isError ? " feed-status-error" : ""}">${status.text}</span>
+        </span>
+        <button class="feed-remove-btn" data-feed-id="${feed.id}" aria-label="Remove ${feed.label}">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>`;
+      calendarFeedList.appendChild(li);
+    });
+  }
+
+  calendarFeedList.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-feed-id]");
+    if (!btn) return;
+    registerInteraction();
+    const result = await withTimeout(db.from("solace_calendar_feeds").delete().eq("id", btn.dataset.feedId), 8000);
+    if (!result || result.error) {
+      feedHint.textContent = "Couldn't remove that calendar — try again.";
+      return;
+    }
+    await loadCalendarFeeds();
+    feedHint.textContent = "Removed. Refreshing today's events…";
+    await triggerCalendarSync();
+    await loadFromSupabase();
+    renderStaticContent();
+  });
+
+  addFeedBtn.addEventListener("click", async () => {
+    registerInteraction();
+    const label = newFeedLabel.value.trim();
+    const url = newFeedUrl.value.trim();
+    if (!label || !url) {
+      feedHint.textContent = "Add a label and a calendar link first.";
+      return;
+    }
+    if (!/^(https?|webcal):\/\//i.test(url)) {
+      feedHint.textContent = "That doesn't look like a calendar link — should start with webcal:// or https://";
+      return;
+    }
+    addFeedBtn.textContent = "Adding…";
+    const result = await withTimeout(
+      db.from("solace_calendar_feeds").insert({ label, ics_url: url, enabled: true }),
+      8000
+    );
+    addFeedBtn.textContent = "Add";
+    if (!result || result.error) {
+      feedHint.textContent = "Couldn't add that calendar — try again.";
+      return;
+    }
+    newFeedLabel.value = "";
+    newFeedUrl.value = "";
+    await loadCalendarFeeds();
+    feedHint.textContent = "Added — syncing now…";
+    await triggerCalendarSync();
+    await loadCalendarFeeds();
+    await loadFromSupabase();
+    renderStaticContent();
+    feedHint.textContent = "From the Calendar app: calendar name → Share Calendar → Public Calendar, then copy the link.";
+  });
+
+  async function triggerCalendarSync() {
+    try {
+      await withTimeout(
+        fetch(`${SUPABASE_URL}/functions/v1/solace-calendar-sync`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+        }),
+        8000
+      );
+    } catch (err) {
+      console.warn("Solace: calendar sync trigger failed — it'll still run on the next scheduled sync.", err);
+    }
   }
 
   function updateDataSourceHint() {
@@ -635,6 +756,7 @@
     settingVoice.value = settings.voiceURI || "";
     wallpaperHint.textContent = "";
     updateDataSourceHint();
+    loadCalendarFeeds();
     settingsOverlay.hidden = false;
     registerInteraction();
   }
