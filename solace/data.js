@@ -17,6 +17,12 @@ const solaceData = {
     high: 76,
     low: 58,
     rainChance: 30,
+    sunrise: null,
+    sunset: null,
+    aqi: null,
+    aqiCategory: null,
+    forecastPeriods: [],
+    locationLabel: "",
   },
   calendar: [
     {
@@ -40,20 +46,38 @@ const solaceData = {
 };
 
 function getWeatherSummary() {
-  const { currentTemp, condition, high, low, rainChance } = solaceData.weather;
+  const {
+    currentTemp, condition, high, low, rainChance,
+    sunrise, sunset, aqi, aqiCategory, forecastPeriods, locationLabel,
+  } = solaceData.weather;
+
   let rainNote = "";
   if (rainChance >= 50) {
     rainNote = ` There's a good chance of rain, so plan for that.`;
   } else if (rainChance >= 20) {
     rainNote = ` There's a small chance of rain this afternoon.`;
   }
+
+  // Only mentioned aloud when it's actually worth knowing — routine
+  // "Good" air quality doesn't need a place in a 45-second briefing.
+  let airNote = "";
+  if (aqi != null && aqi > 100) {
+    airNote = ` Air quality is ${aqiCategory.toLowerCase()} today.`;
+  }
+
   return {
     currentTemp,
     condition,
     high,
     low,
     rainChance,
-    spoken: `It is currently ${currentTemp} degrees and ${condition.toLowerCase()}. Today's high is ${high}, with a low of ${low}.${rainNote}`,
+    sunrise,
+    sunset,
+    aqi,
+    aqiCategory,
+    forecastPeriods: forecastPeriods || [],
+    locationLabel,
+    spoken: `It is currently ${currentTemp} degrees and ${condition.toLowerCase()}. Today's high is ${high}, with a low of ${low}.${rainNote}${airNote}`,
     short: `${condition} · High ${high}° · Low ${low}°`,
   };
 }
