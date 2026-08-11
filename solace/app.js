@@ -22,6 +22,7 @@
   const IDLE_MS = 30000;
   const IDLE_MS_AMBIENT = 15000;
   const SLIDESHOW_INTERVAL_MS = 8000;
+  const PHOTOS_BUCKET = "solace-photos";
 
   const defaultSettings = {
     name: "Chayla",
@@ -31,6 +32,8 @@
     autoStart: false,
     startTime: "07:00",
     spotifyUrl: "",
+    weatherZip: "97062",
+    wallpaperUrl: "",
     displayMode: "standard",
     idleSlideshow: false,
     morningClose: true,
@@ -62,6 +65,7 @@
   const weatherCondPreview = el("weatherCondPreview");
   const weatherHighLowPreview = el("weatherHighLowPreview");
   const weatherWidget = el("weatherWidget");
+  const weatherWidgetIcon = el("weatherWidgetIcon");
   const calendarWidget = el("calendarWidget");
   const nextEventTime = el("nextEventTime");
   const nextEventTitle = el("nextEventTitle");
@@ -108,6 +112,14 @@
   const settingName = el("settingName");
   const settingDevice = el("settingDevice");
   const settingSpotifyUrl = el("settingSpotifyUrl");
+  const settingWeatherZip = el("settingWeatherZip");
+  const weatherLocationHint = el("weatherLocationHint");
+  const watchGrid = el("watchGrid");
+  const watchTileList = el("watchTileList");
+  const newWatchLabel = el("newWatchLabel");
+  const newWatchUrl = el("newWatchUrl");
+  const addWatchBtn = el("addWatchBtn");
+  const watchHint = el("watchHint");
   const calendarFeedList = el("calendarFeedList");
   const newFeedLabel = el("newFeedLabel");
   const newFeedUrl = el("newFeedUrl");
@@ -246,6 +258,32 @@
       return localStorage.getItem(WALLPAPER_KEY) === dataUrl;
     } catch {
       return false;
+    }
+  }
+
+  /**
+   * Uploads a compressed photo (as a data URL) to Supabase Storage so it
+   * follows the user across devices, instead of staying trapped in one
+   * browser's localStorage. Returns the public URL, or null on failure —
+   * callers fall back to the local-only copy already applied/cached.
+   */
+  async function uploadPhotoToStorage(dataUrl, pathPrefix) {
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const path = `${pathPrefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+      const { error } = await db.storage.from(PHOTOS_BUCKET).upload(path, blob, {
+        contentType: "image/jpeg",
+        upsert: true,
+      });
+      if (error) {
+        console.warn("Solace: photo upload to storage failed.", error);
+        return null;
+      }
+      const { data } = db.storage.from(PHOTOS_BUCKET).getPublicUrl(path);
+      return (data && data.publicUrl) || null;
+    } catch (err) {
+      console.warn("Solace: photo upload to storage failed.", err);
+      return null;
     }
   }
 
@@ -415,6 +453,20 @@
 
   let slideshowImages = loadSlideshow();
 
+  async function loadSlideshowImages() {
+    const result = await withTimeout(
+      db.from("solace_slideshow_images").select("id, image_url").order("sort_order", { ascending: true }),
+      8000
+    );
+    if (!result || result.error) {
+      console.warn("Solace: couldn't load slideshow images — using cached copy.", result && result.error);
+      return;
+    }
+    slideshowImages = (result.data || []).map((row) => row.image_url);
+    saveSlideshow(slideshowImages);
+    updateSlideshowHint();
+  }
+
   function updateSlideshowHint() {
     if (!slideshowHint) return;
     const n = slideshowImages.length;
@@ -465,7 +517,7 @@
 
     const { data: settingsRow, error: settingsErr } = await db
       .from("solace_settings")
-      .select("name, device_name, voice_enabled, auto_start, start_time, spotify_url")
+      .select("name, device_name, voice_enabled, auto_start, start_time, spotify_url, weather_zip, weather_location_label, wallpaper_url")
       .eq("id", 1)
       .maybeSingle();
     if (settingsErr) {
@@ -482,14 +534,23 @@
           autoStart: settingsRow.auto_start,
           startTime: settingsRow.start_time,
           spotifyUrl: settingsRow.spotify_url || "",
+          weatherZip: settingsRow.weather_zip || "",
+          wallpaperUrl: settingsRow.wallpaper_url || "",
         };
+        solaceData.weather.locationLabel = settingsRow.weather_location_label || "";
         saveSettings();
+        // Cross-device sync: another device's wallpaper wins over whatever
+        // is cached locally, so a photo uploaded anywhere shows up everywhere.
+        if (settingsRow.wallpaper_url && localStorage.getItem(WALLPAPER_KEY) !== settingsRow.wallpaper_url) {
+          applyWallpaper(settingsRow.wallpaper_url);
+          persistWallpaper(settingsRow.wallpaper_url);
+        }
       }
     }
 
     const { data: weatherRow, error: weatherErr } = await db
       .from("solace_weather")
-      .select("current_temp, condition, high, low, rain_chance")
+      .select("current_temp, condition, high, low, rain_chance, sunrise, sunset, aqi, aqi_category, forecast_periods")
       .eq("id", 1)
       .maybeSingle();
     if (weatherErr) {
@@ -499,11 +560,17 @@
       anySucceeded = true;
       if (weatherRow) {
         solaceData.weather = {
+          ...solaceData.weather,
           currentTemp: weatherRow.current_temp,
           condition: weatherRow.condition,
           high: weatherRow.high,
           low: weatherRow.low,
           rainChance: weatherRow.rain_chance,
+          sunrise: weatherRow.sunrise,
+          sunset: weatherRow.sunset,
+          aqi: weatherRow.aqi,
+          aqiCategory: weatherRow.aqi_category,
+          forecastPeriods: weatherRow.forecast_periods || [],
         };
       }
     }
@@ -539,10 +606,25 @@
         auto_start: settings.autoStart,
         start_time: settings.startTime,
         spotify_url: settings.spotifyUrl || null,
+        weather_zip: settings.weatherZip || null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", 1);
     if (error) console.warn("Solace: couldn't save settings to Supabase — kept locally only.", error);
+  }
+
+  async function triggerWeatherSync() {
+    try {
+      await withTimeout(
+        fetch(`${SUPABASE_URL}/functions/v1/solace-weather-sync`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
+        }),
+        8000
+      );
+    } catch (err) {
+      console.warn("Solace: weather sync trigger failed — it'll still run on the next scheduled sync.", err);
+    }
   }
 
   // ---------- calendar feeds (onboarding: add/remove without a migration) ----------
@@ -698,7 +780,32 @@
     });
 
     greetingEl.textContent = `${dayPeriodGreeting(now.getHours())}, ${settings.name}.`;
+    updateLeaveByUrgency(now);
     return now;
+  }
+
+  // Parses a "8:25 AM" style time string onto today's date (from `now`).
+  function parseTimeToday(timeStr, now) {
+    const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec((timeStr || "").trim());
+    if (!match) return null;
+    let hours = parseInt(match[1], 10) % 12;
+    if (/pm/i.test(match[3])) hours += 12;
+    const minutes = parseInt(match[2], 10);
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes, 0, 0);
+  }
+
+  function updateLeaveByUrgency(now) {
+    if (!leaveByPill || leaveByPill.hidden) return;
+    const next = getNextEvent();
+    const leaveAt = next && next.leaveBy ? parseTimeToday(next.leaveBy, now) : null;
+    leaveByPill.classList.remove("leave-soon", "leave-urgent");
+    if (!leaveAt) return;
+    const minutesUntil = (leaveAt - now) / 60000;
+    if (minutesUntil <= 10) {
+      leaveByPill.classList.add("leave-urgent");
+    } else if (minutesUntil <= 30) {
+      leaveByPill.classList.add("leave-soon");
+    }
   }
 
   function markDataLoading() {
@@ -716,6 +823,31 @@
      nextEventTime, nextEventTitle, nextEventLeaveBy].forEach((node) => {
       node.classList.remove("skeleton");
     });
+  }
+
+  function weatherIconSvg(condition) {
+    const c = (condition || "").toLowerCase();
+    const wrap = (path) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">${path}</svg>`;
+    if (/thunder|storm/.test(c)) {
+      return wrap('<path d="M13 2 5 14h5l-1 8 9-13h-5l1-7z" fill="currentColor" stroke="none"/>');
+    }
+    if (/snow|flurr|sleet/.test(c)) {
+      return wrap('<path d="M12 2v20M4.5 6.5l15 11M19.5 6.5l-15 11" /><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/>');
+    }
+    if (/rain|shower|drizzle/.test(c)) {
+      return wrap('<path d="M7 16a4.5 4.5 0 0 1-.9-8.9 5.5 5.5 0 0 1 10.6-1.9A4.5 4.5 0 0 1 17.5 14H7Z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/>');
+    }
+    if (/fog|haze|mist|smoke/.test(c)) {
+      return wrap('<path d="M4 8h16M3 12h18M5 16h14M7 20h10"/>');
+    }
+    if (/cloud|overcast/.test(c)) {
+      return wrap('<path d="M7 17.5a4.5 4.5 0 0 1-.9-8.9 5.5 5.5 0 0 1 10.6-1.9A4.5 4.5 0 0 1 17.5 15.5H7Z"/>');
+    }
+    if (/partly|partial/.test(c)) {
+      return wrap('<circle cx="9" cy="9" r="3.5"/><path d="M9 3v1.6M9 12.4V14M3 9h1.6M12.4 9H14M4.9 4.9l1.1 1.1M11.1 4.9l-1.1 1.1"/><path d="M11 18a4 4 0 0 1-.7-7.94 5 5 0 0 1 8.7 3.4A4 4 0 0 1 16.5 18H11Z"/>');
+    }
+    // Clear / sunny default
+    return wrap('<circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.4 5.6l-1.4 1.4M7 17l-1.4 1.4M18.4 18.4 17 17M7 7 5.6 5.6"/>');
   }
 
   function pulseWidgets() {
@@ -756,6 +888,10 @@
     weatherTempPreview.textContent = `${weather.currentTemp}°`;
     weatherCondPreview.textContent = weather.condition;
     weatherHighLowPreview.textContent = `High ${weather.high}° · Low ${weather.low}°`;
+    const weatherIcon = weatherIconSvg(weather.condition);
+    if (weatherWidgetIcon) weatherWidgetIcon.innerHTML = weatherIcon;
+    const panelWeatherIconEl = el("panelWeatherIcon");
+    if (panelWeatherIconEl) panelWeatherIconEl.innerHTML = weatherIcon;
 
     if (next) {
       nextEventTime.textContent = next.time;
@@ -772,6 +908,34 @@
     el("panelWeatherCond").textContent = weather.condition;
     el("panelWeatherRange").textContent = `High ${weather.high}° · Low ${weather.low}° · ${weather.rainChance}% chance of rain`;
     el("panelWeatherNote").textContent = weather.spoken;
+    const panelLocationEl = el("panelWeatherLocation");
+    if (panelLocationEl) panelLocationEl.textContent = weather.locationLabel || "Your day";
+    const sunriseEl = el("panelSunrise");
+    if (sunriseEl) sunriseEl.textContent = weather.sunrise || "—";
+    const sunsetEl = el("panelSunset");
+    if (sunsetEl) sunsetEl.textContent = weather.sunset || "—";
+    const aqiEl = el("panelAqi");
+    if (aqiEl) aqiEl.textContent = weather.aqi != null ? `${weather.aqi} · ${weather.aqiCategory}` : "—";
+
+    const forecastListEl = el("forecastList");
+    if (forecastListEl) {
+      forecastListEl.innerHTML = "";
+      if (!weather.forecastPeriods.length) {
+        const li = document.createElement("li");
+        li.className = "feed-list-empty";
+        li.textContent = "Forecast not available yet.";
+        forecastListEl.appendChild(li);
+      } else {
+        weather.forecastPeriods.forEach((p) => {
+          const li = document.createElement("li");
+          li.innerHTML = `
+            <span class="forecast-period-name">${p.name}</span>
+            <span class="forecast-period-desc">${p.shortForecast}</span>
+            <span class="forecast-period-temp">${p.temperature}°</span>`;
+          forecastListEl.appendChild(li);
+        });
+      }
+    }
 
     // Calendar panel
     const eventList = el("eventList");
@@ -835,11 +999,140 @@
     });
   });
 
-  document.querySelectorAll(".watch-tile").forEach((tile) => {
-    tile.addEventListener("click", () => {
-      window.open(tile.dataset.url, "_blank", "noopener");
+  const DEFAULT_WATCH_TILES = [
+    { label: "YouTube", url: "https://www.youtube.com" },
+    { label: "Netflix", url: "https://www.netflix.com" },
+    { label: "Peacock", url: "https://www.peacocktv.com" },
+  ];
+  let watchTiles = DEFAULT_WATCH_TILES.map((t) => ({ ...t, id: null }));
+
+  function watchTileIconSvg(label) {
+    const l = (label || "").toLowerCase();
+    if (l.includes("youtube")) {
+      return '<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.5 31.5 0 0 0 0 12a31.5 31.5 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.5 31.5 0 0 0 24 12a31.5 31.5 0 0 0-.5-5.8zM9.7 15.5V8.5L15.8 12l-6.1 3.5z"/></svg>';
+    }
+    if (l.includes("netflix")) {
+      return '<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M5.4 3h3.6l3.2 8.6L15.4 3h3.6l-5.2 18h-3.6L5.4 3zm13.2 0h3.6L24 21h-3.6l-2.4-8.4L15.6 21H12l6.6-18z"/></svg>';
+    }
+    if (l.includes("peacock")) {
+      return '<svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><circle cx="12" cy="12" r="9"/><path d="M8 14c1.5-2 3-3 4-3s2.5 1 4 3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
+    }
+    return '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5v-7z" fill="currentColor" stroke="none"/></svg>';
+  }
+
+  function watchTileClass(label) {
+    const l = (label || "").toLowerCase();
+    if (l.includes("youtube")) return "watch-tile-youtube";
+    if (l.includes("netflix")) return "watch-tile-netflix";
+    if (l.includes("peacock")) return "watch-tile-peacock";
+    return "watch-tile-custom";
+  }
+
+  function renderWatchGrid() {
+    if (!watchGrid) return;
+    watchGrid.innerHTML = "";
+    watchTiles.forEach((tile) => {
+      const btn = document.createElement("button");
+      btn.className = `watch-tile ${watchTileClass(tile.label)}`;
+      btn.dataset.url = tile.url;
+      btn.innerHTML = `
+        <span class="watch-tile-icon" aria-hidden="true">${watchTileIconSvg(tile.label)}</span>
+        <span class="watch-tile-name">${tile.label}</span>`;
+      btn.addEventListener("click", () => {
+        window.open(tile.url, "_blank", "noopener");
+      });
+      watchGrid.appendChild(btn);
     });
-  });
+  }
+
+  function renderWatchSettingsList() {
+    if (!watchTileList) return;
+    watchTileList.innerHTML = "";
+    if (!watchTiles.length) {
+      const li = document.createElement("li");
+      li.className = "feed-list-empty";
+      li.textContent = "No tiles yet.";
+      watchTileList.appendChild(li);
+      return;
+    }
+    watchTiles.forEach((tile) => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span class="feed-info">
+          <span class="feed-label">${tile.label}</span>
+          <span class="feed-status">${tile.url}</span>
+        </span>
+        <button class="feed-remove-btn" data-watch-id="${tile.id ?? ""}" aria-label="Remove ${tile.label}">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>`;
+      watchTileList.appendChild(li);
+    });
+  }
+
+  async function loadWatchTiles() {
+    const result = await withTimeout(
+      db.from("solace_watch_tiles").select("id, label, url, sort_order").eq("enabled", true).order("sort_order", { ascending: true }),
+      8000
+    );
+    if (!result || result.error) {
+      console.warn("Solace: couldn't load watch tiles — keeping current tiles.", result && result.error);
+      renderWatchGrid();
+      renderWatchSettingsList();
+      return;
+    }
+    if (result.data && result.data.length) {
+      watchTiles = result.data.map((row) => ({ id: row.id, label: row.label, url: row.url }));
+    }
+    renderWatchGrid();
+    renderWatchSettingsList();
+  }
+
+  if (watchTileList) {
+    watchTileList.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-watch-id]");
+      if (!btn || !btn.dataset.watchId) return;
+      registerInteraction();
+      const result = await withTimeout(db.from("solace_watch_tiles").delete().eq("id", btn.dataset.watchId), 8000);
+      if (!result || result.error) {
+        if (watchHint) watchHint.textContent = "Couldn't remove that tile — try again.";
+        return;
+      }
+      await loadWatchTiles();
+      if (watchHint) watchHint.textContent = "Removed.";
+    });
+  }
+
+  if (addWatchBtn) {
+    addWatchBtn.addEventListener("click", async () => {
+      registerInteraction();
+      const label = newWatchLabel.value.trim();
+      const url = newWatchUrl.value.trim();
+      if (!label || !url) {
+        watchHint.textContent = "Add a label and a link first.";
+        return;
+      }
+      if (!/^https?:\/\//i.test(url)) {
+        watchHint.textContent = "That doesn't look like a link — should start with https://";
+        return;
+      }
+      addWatchBtn.textContent = "Adding…";
+      const result = await withTimeout(
+        db.from("solace_watch_tiles").insert({ label, url, sort_order: watchTiles.length, enabled: true }),
+        8000
+      );
+      addWatchBtn.textContent = "Add";
+      if (!result || result.error) {
+        watchHint.textContent = "Couldn't add that tile — try again.";
+        return;
+      }
+      newWatchLabel.value = "";
+      newWatchUrl.value = "";
+      await loadWatchTiles();
+      watchHint.textContent = "Added.";
+    });
+  }
+
+  renderWatchGrid();
 
   function parseSpotifyEmbedUrl(input) {
     if (!input) return null;
@@ -1175,6 +1468,12 @@
     settingName.value = settings.name;
     settingDevice.value = settings.deviceName;
     settingSpotifyUrl.value = settings.spotifyUrl || "";
+    if (settingWeatherZip) settingWeatherZip.value = settings.weatherZip || "";
+    if (weatherLocationHint) {
+      weatherLocationHint.textContent = solaceData.weather.locationLabel
+        ? `Currently: ${solaceData.weather.locationLabel}`
+        : "Enter a 5-digit US ZIP code.";
+    }
     settingStartTime.value = settings.startTime;
     if (settingDisplayMode) settingDisplayMode.value = settings.displayMode || "standard";
     toggleVoice.setAttribute("aria-checked", String(settings.voiceEnabled));
@@ -1187,6 +1486,7 @@
     renderRoutineSettingsList();
     updateDataSourceHint();
     loadCalendarFeeds();
+    renderWatchSettingsList();
     settingsOverlay.hidden = false;
     registerInteraction();
   }
@@ -1223,12 +1523,21 @@
     try {
       const dataUrl = await compressWallpaperFile(file);
       applyWallpaper(dataUrl);
+      persistWallpaper(dataUrl);
+      wallpaperHint.textContent = "Wallpaper applied — syncing across devices…";
 
-      if (persistWallpaper(dataUrl)) {
-        wallpaperHint.textContent = "Wallpaper saved on this device.";
+      const url = await withTimeout(uploadPhotoToStorage(dataUrl, "wallpaper"), 15000);
+      if (url) {
+        const result = await withTimeout(db.from("solace_settings").update({ wallpaper_url: url }).eq("id", 1), 8000);
+        if (result && !result.error) {
+          settings = { ...settings, wallpaperUrl: url };
+          saveSettings();
+          wallpaperHint.textContent = "Wallpaper saved — synced across your devices.";
+        } else {
+          wallpaperHint.textContent = "Wallpaper saved on this device, but couldn't sync — try again.";
+        }
       } else {
-        wallpaperHint.textContent =
-          "Wallpaper applied for now, but it couldn't be saved — try a smaller photo.";
+        wallpaperHint.textContent = "Wallpaper saved on this device, but couldn't sync — try again.";
       }
     } catch {
       wallpaperHint.textContent = "Couldn't use that photo — try a different image.";
@@ -1237,7 +1546,7 @@
     }
   });
 
-  wallpaperResetBtn.addEventListener("click", () => {
+  wallpaperResetBtn.addEventListener("click", async () => {
     registerInteraction();
     try {
       localStorage.removeItem(WALLPAPER_KEY);
@@ -1248,6 +1557,9 @@
     wallpaperEl.style.removeProperty("--custom-wallpaper");
     updateWallpaperHint();
     wallpaperHint.textContent = "Restored the default wallpaper.";
+    settings = { ...settings, wallpaperUrl: "" };
+    saveSettings();
+    await withTimeout(db.from("solace_settings").update({ wallpaper_url: null }).eq("id", 1), 8000);
   });
 
   if (slideshowUploadBtn) {
@@ -1260,15 +1572,26 @@
       slideshowInput.value = "";
       if (!files.length) return;
       registerInteraction();
-      slideshowHint.textContent = "Adding photos…";
+      slideshowHint.textContent = "Uploading photos…";
       slideshowUploadBtn.disabled = true;
       try {
+        let nextOrder = slideshowImages.length;
+        let syncedAll = true;
         for (const file of files.slice(0, 8)) {
           const dataUrl = await compressWallpaperFile(file, { maxEdge: 1600, quality: 0.8 });
-          slideshowImages.push(dataUrl);
+          const url = await withTimeout(uploadPhotoToStorage(dataUrl, "slideshow"), 15000);
+          if (url) {
+            const result = await withTimeout(
+              db.from("solace_slideshow_images").insert({ image_url: url, sort_order: nextOrder++ }),
+              8000
+            );
+            if (!result || result.error) syncedAll = false;
+          } else {
+            syncedAll = false;
+          }
         }
-        saveSlideshow(slideshowImages);
-        updateSlideshowHint();
+        await loadSlideshowImages();
+        if (!syncedAll) slideshowHint.textContent = "Some photos couldn't sync — try again.";
       } catch {
         slideshowHint.textContent = "Couldn't add those photos — try smaller images.";
       } finally {
@@ -1278,22 +1601,31 @@
   }
 
   if (slideshowClearBtn) {
-    slideshowClearBtn.addEventListener("click", () => {
+    slideshowClearBtn.addEventListener("click", async () => {
       registerInteraction();
+      stopSlideshow();
+      slideshowHint.textContent = "Clearing…";
+      const result = await withTimeout(
+        db.from("solace_slideshow_images").delete().gte("created_at", "1970-01-01T00:00:00Z"),
+        8000
+      );
       slideshowImages = [];
       saveSlideshow([]);
-      stopSlideshow();
       updateSlideshowHint();
-      slideshowHint.textContent = "Slideshow cleared.";
+      slideshowHint.textContent = result && !result.error ? "Slideshow cleared." : "Cleared on this device — sync may retry later.";
     });
   }
 
-  settingsSaveBtn.addEventListener("click", () => {
+  settingsSaveBtn.addEventListener("click", async () => {
+    const previousZip = settings.weatherZip;
+    const newZip = settingWeatherZip ? settingWeatherZip.value.trim() : previousZip;
+
     settings = {
       ...settings,
       name: settingName.value.trim() || defaultSettings.name,
       deviceName: settingDevice.value.trim() || defaultSettings.deviceName,
       spotifyUrl: settingSpotifyUrl.value.trim(),
+      weatherZip: /^\d{5}$/.test(newZip) ? newZip : previousZip,
       voiceURI: settingVoice.value,
       voiceEnabled: toggleVoice.getAttribute("aria-checked") === "true",
       autoStart: toggleAutoStart.getAttribute("aria-checked") === "true",
@@ -1307,7 +1639,12 @@
     renderStaticContent();
     renderClock();
     closeSettings();
-    persistSettingsToSupabase();
+    await persistSettingsToSupabase();
+    if (settings.weatherZip !== previousZip) {
+      await triggerWeatherSync();
+      await withTimeout(loadFromSupabase(), 8000);
+      renderStaticContent();
+    }
   });
 
   nightModeBtn.addEventListener("click", () => {
@@ -1657,6 +1994,8 @@
     renderStaticContent({ animateWidgets: true });
     renderClock();
     updateDataSourceHint();
+    await withTimeout(loadWatchTiles(), 8000);
+    await withTimeout(loadSlideshowImages(), 8000);
 
     setInterval(async () => {
       await withTimeout(loadFromSupabase(), 8000);
