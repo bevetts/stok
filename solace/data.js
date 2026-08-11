@@ -101,16 +101,46 @@ function getMorningBriefing(name) {
   ];
 }
 
+function getDayPeriod(hour) {
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
+}
+
 function getContextualSentence() {
+  const hour = new Date().getHours();
+  const period = getDayPeriod(hour);
   const weather = getWeatherSummary();
   const next = getNextEvent();
-  if (next && next.leaveBy) {
-    return `It's going to be a beautiful day. Leave by ${next.leaveBy} for your ${next.time} appointment.`;
+
+  if (period === "morning") {
+    if (next && next.leaveBy) {
+      return `It's going to be a beautiful day. Leave by ${next.leaveBy} for your ${next.time} appointment.`;
+    }
+    if (weather.rainChance >= 50) {
+      return "Bring an umbrella — rain is likely later today.";
+    }
+    return "It's going to be a beautiful day. Ready when you are.";
   }
+
+  if (period === "afternoon") {
+    if (next && next.leaveBy) {
+      return `Leave by ${next.leaveBy} for ${next.title} at ${next.time}.`;
+    }
+    if (next) {
+      return `Coming up: ${next.title} at ${next.time}.`;
+    }
+    if (weather.rainChance >= 50) {
+      return "Rain is likely later — plan ahead if you're heading out.";
+    }
+    return "Afternoon's here. One thing at a time.";
+  }
+
+  // Evening — wind-down copy; skip leave-by (today's rush is over)
   if (weather.rainChance >= 50) {
-    return "Bring an umbrella — rain is likely later today.";
+    return "Rain may linger tonight — stay cozy.";
   }
-  return "It's going to be a beautiful day. Ready when you are.";
+  return "The day did its part. Rest easy tonight.";
 }
 
 const QUOTES = {
