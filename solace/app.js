@@ -59,6 +59,7 @@
     calendar: el("panel-calendar"),
     music: el("panel-music"),
     watch: el("panel-watch"),
+    timer: el("panel-timer"),
   };
 
   const startMorningCard = el("startMorningCard");
@@ -66,6 +67,24 @@
   const briefingText = el("briefingText");
   const briefingChoices = el("briefingChoices");
   const briefingClose = el("briefingClose");
+
+  const timerBadge = el("timerBadge");
+  const timerBadgeText = el("timerBadgeText");
+  const timerSetup = el("timerSetup");
+  const timerDisplay = el("timerDisplay");
+  const timerCountdown = el("timerCountdown");
+  const timerPauseBtn = el("timerPauseBtn");
+  const timerCancelBtn = el("timerCancelBtn");
+  const timerStartBtn = el("timerStartBtn");
+  const timerCustomMinutes = el("timerCustomMinutes");
+  const alarmList = el("alarmList");
+  const newAlarmTime = el("newAlarmTime");
+  const newAlarmLabel = el("newAlarmLabel");
+  const addAlarmBtn = el("addAlarmBtn");
+  const alertOverlay = el("alertOverlay");
+  const alertText = el("alertText");
+  const alertSnoozeBtn = el("alertSnoozeBtn");
+  const alertDismissBtn = el("alertDismissBtn");
 
   const settingsBtn = el("settingsBtn");
   const settingsOverlay = el("settingsOverlay");
@@ -536,7 +555,7 @@
   }
 
   function idleTick() {
-    const overlayOpen = !briefingOverlay.hidden || !settingsOverlay.hidden;
+    const overlayOpen = !briefingOverlay.hidden || !settingsOverlay.hidden || !alertOverlay.hidden;
     const panelOpen = Object.values(panels).some((p) => !p.hidden);
     if (!overlayOpen && !panelOpen && Date.now() - lastInteraction > IDLE_MS) {
       appEl.classList.add("idle");
@@ -837,6 +856,328 @@
     nightModeBtn.textContent = document.body.classList.contains("night") ? "Day mode" : "Night mode";
   });
 
+  // ---------- chime (synthesized — no audio file dependency) ----------
+
+  let audioCtx = null;
+  let chimeIntervalId = null;
+
+  function ensureAudioContext() {
+    // Browsers require an AudioContext to be created/resumed from a real
+    // user gesture before it can produce sound — a timer or alarm can
+    // fire with no gesture anywhere nearby, so this is called from clear,
+    // deliberate gestures (starting a timer, adding an alarm) to "unlock"
+    // audio ahead of time rather than only at the moment a chime is needed.
+    if (!audioCtx) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      audioCtx = new Ctx();
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  }
+
+  function playChime() {
+    ensureAudioContext();
+    if (!audioCtx) return;
+    const playTone = (freq, startTime, duration) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(0.2, startTime + 0.02);
+      gain.gain.linearRampToValueAtTime(0, startTime + duration);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + duration);
+    };
+    const playPattern = () => {
+      const t = audioCtx.currentTime;
+      playTone(880, t, 0.18);
+      playTone(1108.7, t + 0.22, 0.18);
+      playTone(1318.5, t + 0.44, 0.3);
+    };
+    playPattern();
+    stopChime();
+    chimeIntervalId = setInterval(playPattern, 2200);
+  }
+
+  function stopChime() {
+    if (chimeIntervalId) {
+      clearInterval(chimeIntervalId);
+      chimeIntervalId = null;
+    }
+  }
+
+  // ---------- shared timer/alarm alert ----------
+
+  let snoozeContext = null;
+
+  function fireAlert(text, { allowSnooze = false, snoozeMinutes = 5, kind = "timer" } = {}) {
+    alertText.textContent = text;
+    alertSnoozeBtn.hidden = !allowSnooze;
+    alertSnoozeBtn.textContent = `Snooze ${snoozeMinutes} min`;
+    snoozeContext = { kind, snoozeMinutes };
+    alertOverlay.hidden = false;
+    registerInteraction();
+    playChime();
+  }
+
+  function dismissAlert() {
+    alertOverlay.hidden = true;
+    stopChime();
+    registerInteraction();
+  }
+
+  alertDismissBtn.addEventListener("click", dismissAlert);
+
+  alertSnoozeBtn.addEventListener("click", () => {
+    const ctx = snoozeContext;
+    dismissAlert();
+    if (!ctx) return;
+    if (ctx.kind === "timer") {
+      startTimer(ctx.snoozeMinutes);
+    } else if (ctx.kind === "alarm") {
+      // Ephemeral on purpose — a snoozed alarm doesn't survive a reload,
+      // same as most alarm clocks' snooze not surviving a power cycle.
+      setTimeout(() => fireAlert(alertText.textContent, { allowSnooze: true, snoozeMinutes: ctx.snoozeMinutes, kind: "alarm" }), ctx.snoozeMinutes * 60000);
+    }
+  });
+
+  // ---------- timer ----------
+
+  const TIMER_KEY = "solace.timer";
+
+  function loadTimerState() {
+    try {
+      const raw = localStorage.getItem(TIMER_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveTimerState(state) {
+    try {
+      if (state) localStorage.setItem(TIMER_KEY, JSON.stringify(state));
+      else localStorage.removeItem(TIMER_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let timerState = loadTimerState(); // null | {endTs, durationMs} running | {pausedRemainingMs, durationMs} paused
+
+  function formatMMSS(ms) {
+    const totalSec = Math.max(0, Math.round(ms / 1000));
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+
+  function startTimer(minutes) {
+    const durationMs = Math.round(minutes * 60000);
+    timerState = { endTs: Date.now() + durationMs, durationMs };
+    saveTimerState(timerState);
+    renderTimerUI();
+  }
+
+  function pauseTimer() {
+    if (!timerState || timerState.endTs == null) return;
+    timerState = { pausedRemainingMs: Math.max(0, timerState.endTs - Date.now()), durationMs: timerState.durationMs };
+    saveTimerState(timerState);
+    renderTimerUI();
+  }
+
+  function resumeTimer() {
+    if (!timerState || timerState.pausedRemainingMs == null) return;
+    timerState = { endTs: Date.now() + timerState.pausedRemainingMs, durationMs: timerState.durationMs };
+    saveTimerState(timerState);
+    renderTimerUI();
+  }
+
+  function cancelTimer() {
+    timerState = null;
+    saveTimerState(null);
+    renderTimerUI();
+  }
+
+  function renderTimerUI() {
+    if (!timerState) {
+      timerSetup.hidden = false;
+      timerDisplay.hidden = true;
+      timerBadge.hidden = true;
+      return;
+    }
+    timerSetup.hidden = true;
+    timerDisplay.hidden = false;
+    timerBadge.hidden = false;
+
+    const remaining = timerState.pausedRemainingMs != null ? timerState.pausedRemainingMs : timerState.endTs - Date.now();
+    const label = formatMMSS(remaining);
+    timerCountdown.textContent = label;
+    timerBadgeText.textContent = label;
+    timerPauseBtn.textContent = timerState.pausedRemainingMs != null ? "Resume" : "Pause";
+  }
+
+  function timerTick() {
+    if (!timerState || timerState.pausedRemainingMs != null) return;
+    const remaining = timerState.endTs - Date.now();
+    if (remaining <= 0) {
+      cancelTimer();
+      fireAlert("Time's up!", { allowSnooze: true, snoozeMinutes: 5, kind: "timer" });
+      return;
+    }
+    renderTimerUI();
+  }
+
+  document.querySelectorAll(".preset-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      registerInteraction();
+      ensureAudioContext();
+      startTimer(Number(chip.dataset.minutes));
+    });
+  });
+
+  timerStartBtn.addEventListener("click", () => {
+    registerInteraction();
+    const minutes = Number(timerCustomMinutes.value);
+    if (!minutes || minutes <= 0) return;
+    ensureAudioContext();
+    startTimer(minutes);
+    timerCustomMinutes.value = "";
+  });
+
+  timerPauseBtn.addEventListener("click", () => {
+    registerInteraction();
+    if (timerState && timerState.pausedRemainingMs != null) resumeTimer();
+    else pauseTimer();
+  });
+
+  timerCancelBtn.addEventListener("click", () => {
+    registerInteraction();
+    cancelTimer();
+  });
+
+  timerBadge.addEventListener("click", () => {
+    registerInteraction();
+    showView("timer");
+  });
+
+  setInterval(timerTick, 1000);
+
+  // ---------- alarms ----------
+
+  const ALARMS_KEY = "solace.alarms";
+  const ALARM_FIRED_PREFIX = "solace.alarmFired.";
+
+  function loadAlarms() {
+    try {
+      const raw = localStorage.getItem(ALARMS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveAlarms() {
+    try {
+      localStorage.setItem(ALARMS_KEY, JSON.stringify(alarms));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let alarms = loadAlarms();
+
+  function formatTimeHM(hhmm) {
+    const [h, m] = hhmm.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12 = h % 12 || 12;
+    return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+  }
+
+  function renderAlarmList() {
+    alarmList.innerHTML = "";
+    if (!alarms.length) {
+      const li = document.createElement("li");
+      li.className = "feed-list-empty";
+      li.textContent = "No alarms set.";
+      alarmList.appendChild(li);
+      return;
+    }
+    alarms
+      .slice()
+      .sort((a, b) => a.time.localeCompare(b.time))
+      .forEach((alarm) => {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <span class="feed-info">
+            <span class="feed-label">${formatTimeHM(alarm.time)}${alarm.label ? " — " + alarm.label : ""}</span>
+          </span>
+          <span class="alarm-actions">
+            <button class="toggle" data-alarm-toggle="${alarm.id}" role="switch" aria-checked="${alarm.enabled}"><span class="toggle-knob"></span></button>
+            <button class="feed-remove-btn" data-alarm-remove="${alarm.id}" aria-label="Remove alarm">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+          </span>`;
+        alarmList.appendChild(li);
+      });
+  }
+
+  addAlarmBtn.addEventListener("click", () => {
+    registerInteraction();
+    ensureAudioContext();
+    const time = newAlarmTime.value;
+    if (!time) return;
+    alarms.push({ id: crypto.randomUUID(), time, label: newAlarmLabel.value.trim(), enabled: true });
+    saveAlarms();
+    newAlarmTime.value = "";
+    newAlarmLabel.value = "";
+    renderAlarmList();
+  });
+
+  alarmList.addEventListener("click", (e) => {
+    registerInteraction();
+    const toggleBtn = e.target.closest("[data-alarm-toggle]");
+    if (toggleBtn) {
+      const alarm = alarms.find((a) => a.id === toggleBtn.dataset.alarmToggle);
+      if (alarm) {
+        alarm.enabled = !alarm.enabled;
+        saveAlarms();
+        renderAlarmList();
+      }
+      return;
+    }
+    const removeBtn = e.target.closest("[data-alarm-remove]");
+    if (removeBtn) {
+      alarms = alarms.filter((a) => a.id !== removeBtn.dataset.alarmRemove);
+      saveAlarms();
+      renderAlarmList();
+    }
+  });
+
+  function checkAlarms() {
+    if (!alertOverlay.hidden) return; // don't stack a new alert on top of one already ringing
+    const now = new Date();
+    const nowStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const todayKey = now.toISOString().slice(0, 10);
+    for (const alarm of alarms) {
+      if (!alarm.enabled || alarm.time !== nowStr) continue;
+      const firedKey = ALARM_FIRED_PREFIX + alarm.id + "." + todayKey;
+      if (localStorage.getItem(firedKey)) continue;
+      try {
+        localStorage.setItem(firedKey, "1");
+      } catch {
+        /* ignore */
+      }
+      fireAlert(alarm.label ? `Alarm — ${alarm.label}` : "Alarm", { allowSnooze: true, snoozeMinutes: 9, kind: "alarm" });
+      break; // one at a time — the next tick will catch any others
+    }
+  }
+
+  setInterval(checkAlarms, 20000);
+
   // ---------- init ----------
 
   async function init() {
@@ -844,6 +1185,8 @@
     renderStaticContent();
     markDataLoading();
     renderClock();
+    renderTimerUI();
+    renderAlarmList();
     setInterval(renderClock, 1000 * 10);
     setInterval(checkAutoStart, 20000);
     showView("morning");

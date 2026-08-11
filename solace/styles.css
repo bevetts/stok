@@ -809,6 +809,97 @@ select:focus-visible,
 }
 .feed-label-input:focus, .feed-url-input:focus { outline: 1px solid var(--accent); }
 
+/* ---------- Timer badge (near the clock, so it survives idle/ambient mode) ---------- */
+
+.timer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 16px;
+  padding: 8px 15px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  backdrop-filter: blur(var(--blur));
+  color: var(--accent-strong);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  width: fit-content;
+  transition: background 0.25s var(--ease), transform 0.15s var(--ease);
+}
+.timer-badge:hover { background: var(--surface-strong); }
+.timer-badge:active { transform: scale(0.97); }
+.timer-badge-label { color: var(--ink-faint); font-size: 12px; }
+
+/* ---------- Timer & alarms panel ---------- */
+
+.timer-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-chip {
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  font-size: 13.5px;
+  transition: background 0.25s var(--ease), transform 0.15s var(--ease);
+}
+.preset-chip:hover { background: rgba(244,239,232,0.12); }
+.preset-chip:active { transform: scale(0.96); }
+
+.timer-custom-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+#timerCustomMinutes {
+  flex: 1;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--surface-border);
+  font-size: 14px;
+  color: var(--ink);
+}
+#timerCustomMinutes:focus { outline: 1px solid var(--accent); }
+
+.timer-display { text-align: center; padding: 10px 0 4px; }
+
+.timer-countdown {
+  font-size: clamp(48px, 8vw, 72px);
+  font-weight: 200;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.timer-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.panel-divider {
+  height: 1px;
+  background: var(--surface-border-soft);
+  margin: 26px 0 20px;
+}
+
+.subsection-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-dim);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+}
+
+.alarm-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
 .toggle {
   width: 44px;
   height: 26px;
