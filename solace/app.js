@@ -16,8 +16,12 @@
 
   const STORAGE_KEY = "solace.settings";
   const WALLPAPER_KEY = "solace.wallpaper";
+  const SLIDESHOW_KEY = "solace.slideshow";
+  const ROUTINE_KEY = "solace.routine";
   const AUTOSTART_KEY = "solace.lastAutoStart";
   const IDLE_MS = 30000;
+  const IDLE_MS_AMBIENT = 15000;
+  const SLIDESHOW_INTERVAL_MS = 8000;
 
   const defaultSettings = {
     name: "Chayla",
@@ -27,6 +31,9 @@
     autoStart: false,
     startTime: "07:00",
     spotifyUrl: "",
+    displayMode: "standard",
+    idleSlideshow: false,
+    morningClose: true,
   };
 
   let settings = loadSettings();
@@ -42,6 +49,10 @@
   const dateLineEl = el("dateLine");
   const greetingEl = el("greeting");
   const contextLineEl = el("contextLine");
+  const glanceLineEl = el("glanceLine");
+  const leaveByPill = el("leaveByPill");
+  const leaveByPillText = el("leaveByPillText");
+  const vanityStartBtn = el("vanityStartBtn");
   const quoteLineEl = el("quoteLine");
   const statusTempEl = el("statusTemp");
   const avatarInitialEl = el("avatarInitial");
@@ -117,6 +128,20 @@
   const spotifyEmbedWrap = el("spotifyEmbedWrap");
   const spotifyEmbed = el("spotifyEmbed");
   const spotifyEmptyState = el("spotifyEmptyState");
+
+  const routineList = el("routineList");
+  const routineProgress = el("routineProgress");
+  const routineSettingsList = el("routineSettingsList");
+  const newRoutineItem = el("newRoutineItem");
+  const addRoutineBtn = el("addRoutineBtn");
+
+  const settingDisplayMode = el("settingDisplayMode");
+  const toggleSlideshow = el("toggleSlideshow");
+  const toggleMorningClose = el("toggleMorningClose");
+  const slideshowUploadBtn = el("slideshowUploadBtn");
+  const slideshowClearBtn = el("slideshowClearBtn");
+  const slideshowInput = el("slideshowInput");
+  const slideshowHint = el("slideshowHint");
 
   // ---------- settings persistence ----------
 
@@ -222,6 +247,212 @@
     } catch {
       return false;
     }
+  }
+
+  // ---------- display presets ----------
+
+  function applyDisplayMode() {
+    document.body.classList.remove("mode-standard", "mode-vanity", "mode-ambient");
+    const mode = settings.displayMode || "standard";
+    document.body.classList.add(`mode-${mode}`);
+  }
+
+  function getIdleMs() {
+    return settings.displayMode === "ambient" ? IDLE_MS_AMBIENT : IDLE_MS;
+  }
+
+  // ---------- morning routine ----------
+
+  function todayKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function loadRoutineState() {
+    try {
+      const raw = localStorage.getItem(ROUTINE_KEY);
+      if (!raw) {
+        return {
+          date: todayKey(),
+          items: DEFAULT_ROUTINE.map((label) => ({
+            id: crypto.randomUUID(),
+            label,
+            done: false,
+          })),
+        };
+      }
+      const parsed = JSON.parse(raw);
+      if (parsed.date !== todayKey()) {
+        parsed.date = todayKey();
+        parsed.items = (parsed.items || []).map((item) => ({ ...item, done: false }));
+        saveRoutineState(parsed);
+      }
+      return parsed;
+    } catch {
+      return {
+        date: todayKey(),
+        items: DEFAULT_ROUTINE.map((label) => ({
+          id: crypto.randomUUID(),
+          label,
+          done: false,
+        })),
+      };
+    }
+  }
+
+  function saveRoutineState(state) {
+    try {
+      localStorage.setItem(ROUTINE_KEY, JSON.stringify(state));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let routineState = loadRoutineState();
+
+  function renderRoutineList() {
+    if (!routineList) return;
+    routineList.innerHTML = "";
+    const items = routineState.items || [];
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.className = "feed-list-empty";
+      li.textContent = "Add items in Settings.";
+      routineList.appendChild(li);
+      if (routineProgress) routineProgress.textContent = "0/0";
+      return;
+    }
+
+    const doneCount = items.filter((i) => i.done).length;
+    if (routineProgress) routineProgress.textContent = `${doneCount}/${items.length}`;
+
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      li.className = `routine-item${item.done ? " done" : ""}`;
+      li.dataset.routineId = item.id;
+      li.innerHTML = `
+        <span class="routine-check" aria-hidden="true">${item.done ? "✓" : ""}</span>
+        <span>${item.label}</span>`;
+      routineList.appendChild(li);
+    });
+  }
+
+  function renderRoutineSettingsList() {
+    if (!routineSettingsList) return;
+    routineSettingsList.innerHTML = "";
+    const items = routineState.items || [];
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.className = "feed-list-empty";
+      li.textContent = "No routine items yet.";
+      routineSettingsList.appendChild(li);
+      return;
+    }
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span class="feed-info"><span class="feed-label">${item.label}</span></span>
+        <button class="feed-remove-btn" data-routine-remove="${item.id}" aria-label="Remove ${item.label}">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>`;
+      routineSettingsList.appendChild(li);
+    });
+  }
+
+  routineList.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-routine-id]");
+    if (!row) return;
+    registerInteraction();
+    const item = routineState.items.find((i) => i.id === row.dataset.routineId);
+    if (!item) return;
+    item.done = !item.done;
+    saveRoutineState(routineState);
+    renderRoutineList();
+  });
+
+  addRoutineBtn.addEventListener("click", () => {
+    const label = newRoutineItem.value.trim();
+    if (!label) return;
+    registerInteraction();
+    routineState.items.push({ id: crypto.randomUUID(), label, done: false });
+    saveRoutineState(routineState);
+    newRoutineItem.value = "";
+    renderRoutineList();
+    renderRoutineSettingsList();
+  });
+
+  routineSettingsList.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-routine-remove]");
+    if (!btn) return;
+    registerInteraction();
+    routineState.items = routineState.items.filter((i) => i.id !== btn.dataset.routineRemove);
+    saveRoutineState(routineState);
+    renderRoutineList();
+    renderRoutineSettingsList();
+  });
+
+  // ---------- idle slideshow ----------
+
+  let slideshowIndex = 0;
+  let slideshowIntervalId = null;
+  let savedWallpaperBeforeSlideshow = null;
+
+  function loadSlideshow() {
+    try {
+      const raw = localStorage.getItem(SLIDESHOW_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveSlideshow(images) {
+    try {
+      localStorage.setItem(SLIDESHOW_KEY, JSON.stringify(images));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let slideshowImages = loadSlideshow();
+
+  function updateSlideshowHint() {
+    if (!slideshowHint) return;
+    const n = slideshowImages.length;
+    slideshowHint.textContent = n
+      ? `${n} photo${n === 1 ? "" : "s"} in idle rotation.`
+      : "Add photos to cycle when idle (if slideshow is on).";
+  }
+
+  function stopSlideshow() {
+    if (slideshowIntervalId) {
+      clearInterval(slideshowIntervalId);
+      slideshowIntervalId = null;
+    }
+    if (savedWallpaperBeforeSlideshow !== null) {
+      if (savedWallpaperBeforeSlideshow) {
+        applyWallpaper(savedWallpaperBeforeSlideshow);
+      } else {
+        wallpaperEl.classList.remove("custom");
+        wallpaperEl.style.removeProperty("--custom-wallpaper");
+      }
+      savedWallpaperBeforeSlideshow = null;
+    }
+  }
+
+  function startSlideshow() {
+    if (!settings.idleSlideshow || slideshowImages.length < 1) return;
+    stopSlideshow();
+    try {
+      savedWallpaperBeforeSlideshow = localStorage.getItem(WALLPAPER_KEY);
+    } catch {
+      savedWallpaperBeforeSlideshow = null;
+    }
+    slideshowIndex = 0;
+    applyWallpaper(slideshowImages[slideshowIndex]);
+    slideshowIntervalId = setInterval(() => {
+      slideshowIndex = (slideshowIndex + 1) % slideshowImages.length;
+      applyWallpaper(slideshowImages[slideshowIndex]);
+    }, SLIDESHOW_INTERVAL_MS);
   }
 
   // ---------- Supabase (live data) ----------
@@ -506,6 +737,17 @@
 
     contextLineEl.textContent = getContextualSentence();
     if (quoteLineEl) quoteLineEl.textContent = getQuoteLine();
+    if (glanceLineEl) glanceLineEl.textContent = getGlanceLine();
+
+    const next = getNextEvent();
+    if (leaveByPill && leaveByPillText) {
+      if (next && next.leaveBy) {
+        leaveByPillText.textContent = `Leave by ${next.leaveBy}`;
+        leaveByPill.hidden = false;
+      } else {
+        leaveByPill.hidden = true;
+      }
+    }
 
     clearDataLoading();
 
@@ -515,7 +757,6 @@
     weatherCondPreview.textContent = weather.condition;
     weatherHighLowPreview.textContent = `High ${weather.high}° · Low ${weather.low}°`;
 
-    const next = getNextEvent();
     if (next) {
       nextEventTime.textContent = next.time;
       nextEventTitle.textContent = next.title;
@@ -555,6 +796,7 @@
     }
 
     if (animateWidgets) pulseWidgets();
+    renderRoutineList();
   }
 
   // ---------- view / dock navigation ----------
@@ -646,14 +888,21 @@
     lastInteraction = Date.now();
     if (appEl.classList.contains("idle")) {
       appEl.classList.remove("idle");
+      document.body.classList.remove("app-idle-host");
+      stopSlideshow();
     }
   }
 
   function idleTick() {
     const overlayOpen = !briefingOverlay.hidden || !settingsOverlay.hidden || !alertOverlay.hidden;
     const panelOpen = Object.values(panels).some((p) => !p.hidden);
-    if (!overlayOpen && !panelOpen && Date.now() - lastInteraction > IDLE_MS) {
-      appEl.classList.add("idle");
+    const idleMs = getIdleMs();
+    if (!overlayOpen && !panelOpen && Date.now() - lastInteraction > idleMs) {
+      if (!appEl.classList.contains("idle")) {
+        appEl.classList.add("idle");
+        document.body.classList.add("app-idle-host");
+        startSlideshow();
+      }
     }
   }
 
@@ -819,14 +1068,44 @@
     briefingActive = false;
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     briefingOverlay.hidden = true;
+    briefingChoices.hidden = true;
     resetBriefingProgress();
     registerInteraction();
+  }
+
+  async function finishBriefingWithClose(afterClose) {
+    if (!settings.morningClose) {
+      closeBriefing();
+      if (afterClose) await afterClose();
+      return;
+    }
+
+    briefingChoices.hidden = true;
+    const closeText = getMorningCloseText(settings.name);
+    briefingText.classList.remove("stage-visible");
+    briefingText.classList.add("stage-enter");
+    await pause(150);
+    briefingText.textContent = closeText;
+    briefingText.classList.remove("stage-enter");
+    briefingText.classList.add("stage-visible");
+    if (briefingProgressLabel) briefingProgressLabel.textContent = "All set";
+    await speak(closeText);
+    await pause(1200);
+    closeBriefing();
+    if (afterClose) await afterClose();
   }
 
   startMorningCard.addEventListener("click", () => {
     registerInteraction();
     runMorningBriefing();
   });
+
+  if (vanityStartBtn) {
+    vanityStartBtn.addEventListener("click", () => {
+      registerInteraction();
+      runMorningBriefing();
+    });
+  }
 
   briefingClose.addEventListener("click", closeBriefing);
 
@@ -845,18 +1124,19 @@
       const hasEmbed = !!parseSpotifyEmbedUrl(settings.spotifyUrl);
       briefingText.textContent = hasEmbed ? "Starting your morning playlist." : "Opening Spotify.";
       await speak(briefingText.textContent);
-      closeBriefing();
-      if (hasEmbed) {
-        showView("music");
-      } else {
-        await pause(300);
-        openSpotify();
-      }
+      await finishBriefingWithClose(async () => {
+        if (hasEmbed) {
+          showView("music");
+        } else {
+          await pause(300);
+          openSpotify();
+        }
+      });
     } else if (urls[action]) {
       window.open(urls[action], "_blank", "noopener");
-      closeBriefing();
+      await finishBriefingWithClose();
     } else {
-      closeBriefing();
+      await finishBriefingWithClose();
     }
   });
 
@@ -896,10 +1176,15 @@
     settingDevice.value = settings.deviceName;
     settingSpotifyUrl.value = settings.spotifyUrl || "";
     settingStartTime.value = settings.startTime;
+    if (settingDisplayMode) settingDisplayMode.value = settings.displayMode || "standard";
     toggleVoice.setAttribute("aria-checked", String(settings.voiceEnabled));
     toggleAutoStart.setAttribute("aria-checked", String(settings.autoStart));
+    if (toggleSlideshow) toggleSlideshow.setAttribute("aria-checked", String(settings.idleSlideshow));
+    if (toggleMorningClose) toggleMorningClose.setAttribute("aria-checked", String(settings.morningClose));
     settingVoice.value = settings.voiceURI || "";
     updateWallpaperHint();
+    updateSlideshowHint();
+    renderRoutineSettingsList();
     updateDataSourceHint();
     loadCalendarFeeds();
     settingsOverlay.hidden = false;
@@ -917,7 +1202,7 @@
     if (e.target === settingsOverlay) closeSettings();
   });
 
-  [toggleVoice, toggleAutoStart].forEach((t) => {
+  [toggleVoice, toggleAutoStart, toggleSlideshow, toggleMorningClose].filter(Boolean).forEach((t) => {
     t.addEventListener("click", () => {
       const next = t.getAttribute("aria-checked") !== "true";
       t.setAttribute("aria-checked", String(next));
@@ -965,6 +1250,44 @@
     wallpaperHint.textContent = "Restored the default wallpaper.";
   });
 
+  if (slideshowUploadBtn) {
+    slideshowUploadBtn.addEventListener("click", () => slideshowInput.click());
+  }
+
+  if (slideshowInput) {
+    slideshowInput.addEventListener("change", async () => {
+      const files = [...slideshowInput.files];
+      slideshowInput.value = "";
+      if (!files.length) return;
+      registerInteraction();
+      slideshowHint.textContent = "Adding photos…";
+      slideshowUploadBtn.disabled = true;
+      try {
+        for (const file of files.slice(0, 8)) {
+          const dataUrl = await compressWallpaperFile(file, { maxEdge: 1600, quality: 0.8 });
+          slideshowImages.push(dataUrl);
+        }
+        saveSlideshow(slideshowImages);
+        updateSlideshowHint();
+      } catch {
+        slideshowHint.textContent = "Couldn't add those photos — try smaller images.";
+      } finally {
+        slideshowUploadBtn.disabled = false;
+      }
+    });
+  }
+
+  if (slideshowClearBtn) {
+    slideshowClearBtn.addEventListener("click", () => {
+      registerInteraction();
+      slideshowImages = [];
+      saveSlideshow([]);
+      stopSlideshow();
+      updateSlideshowHint();
+      slideshowHint.textContent = "Slideshow cleared.";
+    });
+  }
+
   settingsSaveBtn.addEventListener("click", () => {
     settings = {
       ...settings,
@@ -975,8 +1298,12 @@
       voiceEnabled: toggleVoice.getAttribute("aria-checked") === "true",
       autoStart: toggleAutoStart.getAttribute("aria-checked") === "true",
       startTime: settingStartTime.value || defaultSettings.startTime,
+      displayMode: settingDisplayMode ? settingDisplayMode.value : "standard",
+      idleSlideshow: toggleSlideshow ? toggleSlideshow.getAttribute("aria-checked") === "true" : false,
+      morningClose: toggleMorningClose ? toggleMorningClose.getAttribute("aria-checked") === "true" : true,
     };
     saveSettings();
+    applyDisplayMode();
     renderStaticContent();
     renderClock();
     closeSettings();
@@ -1313,12 +1640,15 @@
   // ---------- init ----------
 
   async function init() {
+    applyDisplayMode();
     applyWallpaperFromStorage();
     renderStaticContent();
     markDataLoading();
     renderClock();
     renderTimerUI();
     renderAlarmList();
+    renderRoutineList();
+    updateSlideshowHint();
     setInterval(renderClock, 1000 * 10);
     setInterval(checkAutoStart, 20000);
     showView("morning");
