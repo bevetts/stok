@@ -67,9 +67,17 @@
   const weatherWidget = el("weatherWidget");
   const weatherWidgetIcon = el("weatherWidgetIcon");
   const calendarWidget = el("calendarWidget");
-  const nextEventTime = el("nextEventTime");
-  const nextEventTitle = el("nextEventTitle");
-  const nextEventLeaveBy = el("nextEventLeaveBy");
+  const homeAgendaList = el("homeAgendaList");
+  const agendaDays = el("agendaDays");
+  const openFullCalendarBtn = el("openFullCalendarBtn");
+  const calendarPageOverlay = el("calendarPageOverlay");
+  const calendarPageClose = el("calendarPageClose");
+  const calendarPageTabs = el("calendarPageTabs");
+  const calendarPagePrev = el("calendarPagePrev");
+  const calendarPageNext = el("calendarPageNext");
+  const calendarPageTodayBtn = el("calendarPageTodayBtn");
+  const calendarPageRange = el("calendarPageRange");
+  const calendarPageBody = el("calendarPageBody");
 
   const dock = el("dock");
   const panels = {
@@ -634,7 +642,7 @@
     const result = await withTimeout(
       db
         .from("solace_calendar_feeds")
-        .select("id, label, ics_url, enabled, last_synced_at, last_sync_error")
+        .select("id, label, ics_url, enabled, color, last_synced_at, last_sync_error")
         .order("created_at", { ascending: true }),
       8000
     );
@@ -646,7 +654,12 @@
       console.warn("Solace: couldn't load calendar feeds.", result.error);
       return;
     }
-    renderFeedList(result.data || []);
+    const feeds = result.data || [];
+    feedMeta = {};
+    feeds.forEach((f) => {
+      feedMeta[f.id] = { label: f.label, color: f.color || "#e8b87a" };
+    });
+    renderFeedList(feeds);
   }
 
   function feedStatusText(feed) {
@@ -671,21 +684,47 @@
       const li = document.createElement("li");
       li.innerHTML = `
         <span class="feed-info">
-          <span class="feed-label">${feed.label}</span>
-          <span class="feed-status${status.isError ? " feed-status-error" : ""}">${status.text}</span>
+          <span class="feed-label">${escapeHtml(feed.label)}</span>
+          <span class="feed-status${status.isError ? " feed-status-error" : ""}">${escapeHtml(status.text)}</span>
         </span>
-        <button class="feed-remove-btn" data-feed-id="${feed.id}" aria-label="Remove ${feed.label}">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
-        </button>`;
+        <span class="feed-actions">
+          <input type="color" class="feed-color-input" data-feed-color-id="${feed.id}" value="${feed.color || "#e8b87a"}" aria-label="${escapeHtml(feed.label)} color" />
+          <button class="toggle toggle-sm" data-feed-toggle-id="${feed.id}" role="switch" aria-checked="${feed.enabled}" aria-label="${escapeHtml(feed.label)} enabled"><span class="toggle-knob"></span></button>
+          <button class="feed-remove-btn" data-feed-id="${feed.id}" aria-label="Remove ${escapeHtml(feed.label)}">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </span>`;
       calendarFeedList.appendChild(li);
     });
   }
 
   calendarFeedList.addEventListener("click", async (e) => {
-    const btn = e.target.closest("[data-feed-id]");
-    if (!btn) return;
+    const toggleBtn = e.target.closest("[data-feed-toggle-id]");
+    if (toggleBtn) {
+      registerInteraction();
+      const newEnabled = toggleBtn.getAttribute("aria-checked") !== "true";
+      toggleBtn.setAttribute("aria-checked", String(newEnabled));
+      const result = await withTimeout(
+        db.from("solace_calendar_feeds").update({ enabled: newEnabled }).eq("id", toggleBtn.dataset.feedToggleId),
+        8000
+      );
+      if (!result || result.error) {
+        toggleBtn.setAttribute("aria-checked", String(!newEnabled));
+        feedHint.textContent = "Couldn't update that calendar — try again.";
+        return;
+      }
+      feedHint.textContent = newEnabled ? "Enabled — syncing…" : "Disabled.";
+      await triggerCalendarSync();
+      await loadCalendarFeeds();
+      await loadFromSupabase();
+      renderStaticContent({ animateWidgets: true });
+      return;
+    }
+
+    const removeBtn = e.target.closest("[data-feed-id]");
+    if (!removeBtn) return;
     registerInteraction();
-    const result = await withTimeout(db.from("solace_calendar_feeds").delete().eq("id", btn.dataset.feedId), 8000);
+    const result = await withTimeout(db.from("solace_calendar_feeds").delete().eq("id", removeBtn.dataset.feedId), 8000);
     if (!result || result.error) {
       feedHint.textContent = "Couldn't remove that calendar — try again.";
       return;
@@ -695,6 +734,22 @@
     await triggerCalendarSync();
     await loadFromSupabase();
     renderStaticContent({ animateWidgets: true });
+  });
+
+  calendarFeedList.addEventListener("change", async (e) => {
+    const colorInput = e.target.closest("[data-feed-color-id]");
+    if (!colorInput) return;
+    registerInteraction();
+    const result = await withTimeout(
+      db.from("solace_calendar_feeds").update({ color: colorInput.value }).eq("id", colorInput.dataset.feedColorId),
+      8000
+    );
+    if (!result || result.error) {
+      feedHint.textContent = "Couldn't save that color — try again.";
+      return;
+    }
+    await loadCalendarFeeds();
+    feedHint.textContent = "Color saved.";
   });
 
   addFeedBtn.addEventListener("click", async () => {
@@ -814,15 +869,12 @@
     weatherTempPreview.classList.add("skeleton");
     weatherCondPreview.classList.add("skeleton");
     weatherHighLowPreview.classList.add("skeleton");
-    nextEventTime.classList.add("skeleton");
-    nextEventTitle.classList.add("skeleton");
-    nextEventLeaveBy.classList.add("skeleton");
+    if (homeAgendaList) homeAgendaList.classList.add("skeleton");
   }
 
   function clearDataLoading() {
-    [statusTempEl, weatherTempPreview, weatherCondPreview, weatherHighLowPreview,
-     nextEventTime, nextEventTitle, nextEventLeaveBy].forEach((node) => {
-      node.classList.remove("skeleton");
+    [statusTempEl, weatherTempPreview, weatherCondPreview, weatherHighLowPreview, homeAgendaList].forEach((node) => {
+      if (node) node.classList.remove("skeleton");
     });
   }
 
@@ -894,15 +946,7 @@
     const panelWeatherIconEl = el("panelWeatherIcon");
     if (panelWeatherIconEl) panelWeatherIconEl.innerHTML = weatherIcon;
 
-    if (next) {
-      nextEventTime.textContent = next.time;
-      nextEventTitle.textContent = next.title;
-      nextEventLeaveBy.textContent = next.leaveBy ? `Leave by ${next.leaveBy}` : "No leave time needed";
-    } else {
-      nextEventTime.textContent = "—";
-      nextEventTitle.textContent = "Nothing scheduled";
-      nextEventLeaveBy.textContent = "";
-    }
+    renderHomeAgenda();
 
     // Weather panel
     el("panelWeatherTemp").textContent = `${weather.currentTemp}°`;
@@ -938,30 +982,335 @@
       }
     }
 
-    // Calendar panel
-    const eventList = el("eventList");
-    eventList.innerHTML = "";
-    if (!solaceData.calendar.length) {
-      const li = document.createElement("li");
-      li.className = "event-empty";
-      li.textContent = "Nothing scheduled today.";
-      eventList.appendChild(li);
-    } else {
-      solaceData.calendar.forEach((ev) => {
-        const li = document.createElement("li");
-        li.innerHTML = `
-          <span class="event-time">${ev.time}</span>
-          <span class="event-body">
-            <span class="event-title">${ev.title}</span>
-            ${ev.leaveBy ? `<div class="event-leave">Leave by ${ev.leaveBy}</div>` : ""}
-            ${ev.location ? `<div class="event-loc">${ev.location}</div>` : ""}
-          </span>`;
-        eventList.appendChild(li);
-      });
-    }
-
     if (animateWidgets) pulseWidgets();
     renderRoutineList();
+  }
+
+  // ---------- calendar: agenda / week / month ----------
+
+  // Calendar event titles/locations come from external ICS feeds — never
+  // trust them into innerHTML unescaped.
+  function escapeHtml(str) {
+    return String(str ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function ymd(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function addDays(date, n) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    return d;
+  }
+
+  function parseYmd(str) {
+    const [y, m, d] = str.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function startOfWeek(date) {
+    const d = new Date(date);
+    d.setDate(d.getDate() - d.getDay());
+    return d;
+  }
+
+  function dayLabel(dateStr, todayStr) {
+    if (dateStr === todayStr) return "Today";
+    const diffDays = Math.round((parseYmd(dateStr) - parseYmd(todayStr)) / 86400000);
+    if (diffDays === 1) return "Tomorrow";
+    if (diffDays > 1 && diffDays < 7) return parseYmd(dateStr).toLocaleDateString(undefined, { weekday: "long" });
+    return parseYmd(dateStr).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  }
+
+  // id -> { label, color } for the household's connected calendars, kept in
+  // sync by loadCalendarFeeds() so agenda/week/month views can color-code
+  // events by source without an extra round trip per render.
+  let feedMeta = {};
+
+  function feedColorFor(feedId) {
+    return (feedMeta[feedId] && feedMeta[feedId].color) || "#e8b87a";
+  }
+
+  function renderHomeAgenda() {
+    if (!homeAgendaList) return;
+    homeAgendaList.innerHTML = "";
+    const events = solaceData.calendar.slice(0, 4);
+    if (!events.length) {
+      const li = document.createElement("li");
+      li.className = "home-agenda-empty";
+      li.textContent = "Nothing scheduled today.";
+      homeAgendaList.appendChild(li);
+      return;
+    }
+    events.forEach((ev) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="home-agenda-time">${escapeHtml(ev.time)}</span><span class="home-agenda-title">${escapeHtml(ev.title)}</span>`;
+      homeAgendaList.appendChild(li);
+    });
+  }
+
+  async function fetchEventsInRange(startStr, endStr) {
+    const result = await withTimeout(
+      db
+        .from("solace_calendar_events")
+        .select("id, event_date, display_time, title, location, leave_by, feed_id, sort_order")
+        .gte("event_date", startStr)
+        .lte("event_date", endStr)
+        .order("event_date", { ascending: true })
+        .order("sort_order", { ascending: true }),
+      8000
+    );
+    if (!result || result.error) {
+      console.warn("Solace: couldn't load calendar events for range.", result && result.error);
+      return [];
+    }
+    return result.data || [];
+  }
+
+  function groupEventsByDate(events) {
+    const map = {};
+    events.forEach((e) => {
+      if (!map[e.event_date]) map[e.event_date] = [];
+      map[e.event_date].push(e);
+    });
+    return map;
+  }
+
+  function eventRowHtml(ev) {
+    return `
+      <span class="event-time">${escapeHtml(ev.display_time)}</span>
+      <span class="event-body">
+        <span class="event-title-row"><span class="event-dot" style="background:${feedColorFor(ev.feed_id)}"></span><span class="event-title">${escapeHtml(ev.title)}</span></span>
+        ${ev.leave_by ? `<div class="event-leave">Leave by ${escapeHtml(ev.leave_by)}</div>` : ""}
+        ${ev.location ? `<div class="event-loc">${escapeHtml(ev.location)}</div>` : ""}
+      </span>`;
+  }
+
+  // Shared by the 7-day panel and the Agenda tab of the full calendar page.
+  function renderAgendaInto(container, events, { fromDate, toDate, todayStr }) {
+    container.innerHTML = "";
+    const grouped = groupEventsByDate(events);
+    let cursor = new Date(fromDate);
+    const end = new Date(toDate);
+    while (cursor <= end) {
+      const dateStr = ymd(cursor);
+      const dayEvents = grouped[dateStr] || [];
+      const group = document.createElement("div");
+      group.className = "agenda-day-group";
+      const header = document.createElement("div");
+      header.className = "agenda-day-header";
+      header.textContent = dayLabel(dateStr, todayStr);
+      group.appendChild(header);
+      if (!dayEvents.length) {
+        const empty = document.createElement("div");
+        empty.className = "agenda-day-empty";
+        empty.textContent = "Nothing scheduled.";
+        group.appendChild(empty);
+      } else {
+        const ul = document.createElement("ul");
+        ul.className = "event-list";
+        dayEvents.forEach((ev) => {
+          const li = document.createElement("li");
+          li.innerHTML = eventRowHtml(ev);
+          ul.appendChild(li);
+        });
+        group.appendChild(ul);
+      }
+      container.appendChild(group);
+      cursor = addDays(cursor, 1);
+    }
+  }
+
+  async function loadAndRenderAgendaPanel() {
+    if (!agendaDays) return;
+    const today = new Date();
+    const todayStr = ymd(today);
+    const rangeEnd = addDays(today, 6);
+    const events = await fetchEventsInRange(todayStr, ymd(rangeEnd));
+    renderAgendaInto(agendaDays, events, { fromDate: today, toDate: rangeEnd, todayStr });
+  }
+
+  // ---------- full calendar page (Agenda / Week / Month) ----------
+
+  const CAL_SYNC_PAST_DAYS = 7;
+  const CAL_SYNC_FUTURE_DAYS = 60; // must match the calendar-sync edge function's window
+
+  let calendarPageView = "agenda";
+  let calendarPageAnchor = new Date();
+  let calendarWindowEvents = [];
+
+  function calendarWindowBounds() {
+    const today = new Date();
+    return { min: addDays(today, -CAL_SYNC_PAST_DAYS), max: addDays(today, CAL_SYNC_FUTURE_DAYS) };
+  }
+
+  function clampToWindow(date) {
+    const { min, max } = calendarWindowBounds();
+    if (date < min) return min;
+    if (date > max) return max;
+    return date;
+  }
+
+  async function refreshCalendarWindowEvents() {
+    const { min, max } = calendarWindowBounds();
+    calendarWindowEvents = await fetchEventsInRange(ymd(min), ymd(max));
+  }
+
+  function updateCalTabsUI() {
+    if (!calendarPageTabs) return;
+    calendarPageTabs.querySelectorAll(".cal-tab").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.calView === calendarPageView);
+    });
+  }
+
+  function updateCalNavButtonsState() {
+    const { min, max } = calendarWindowBounds();
+    let atMin, atMax;
+    if (calendarPageView === "month") {
+      atMin = calendarPageAnchor.getFullYear() === min.getFullYear() && calendarPageAnchor.getMonth() === min.getMonth();
+      atMax = calendarPageAnchor.getFullYear() === max.getFullYear() && calendarPageAnchor.getMonth() === max.getMonth();
+    } else {
+      atMin = ymd(calendarPageAnchor) <= ymd(min);
+      atMax = ymd(addDays(calendarPageAnchor, 6)) >= ymd(max);
+    }
+    if (calendarPagePrev) calendarPagePrev.disabled = atMin;
+    if (calendarPageNext) calendarPageNext.disabled = atMax;
+  }
+
+  function renderWeekView(todayStr) {
+    const weekStart = startOfWeek(calendarPageAnchor);
+    const weekEnd = addDays(weekStart, 6);
+    calendarPageRange.textContent = `${weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${weekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+    const grouped = groupEventsByDate(calendarWindowEvents);
+    let html = `<div class="cal-week-grid">`;
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(weekStart, i);
+      const dateStr = ymd(d);
+      const dayEvents = grouped[dateStr] || [];
+      html += `<div class="cal-week-day${dateStr === todayStr ? " is-today" : ""}">
+        <div class="cal-week-day-label">${d.toLocaleDateString(undefined, { weekday: "short" })}</div>
+        <div class="cal-week-day-num">${d.getDate()}</div>`;
+      if (!dayEvents.length) {
+        html += `<div class="cal-week-day-empty">—</div>`;
+      } else {
+        dayEvents.slice(0, 5).forEach((ev) => {
+          html += `<div class="cal-week-event"><span class="event-dot" style="background:${feedColorFor(ev.feed_id)}"></span><span>${escapeHtml(ev.title)}</span></div>`;
+        });
+        if (dayEvents.length > 5) html += `<div class="cal-week-event">+${dayEvents.length - 5} more</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    calendarPageBody.innerHTML = html;
+  }
+
+  function renderMonthView(todayStr) {
+    const year = calendarPageAnchor.getFullYear();
+    const month = calendarPageAnchor.getMonth();
+    calendarPageRange.textContent = calendarPageAnchor.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+    const firstOfMonth = new Date(year, month, 1);
+    const gridStart = addDays(firstOfMonth, -firstOfMonth.getDay());
+    const grouped = groupEventsByDate(calendarWindowEvents);
+    const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    let html = `<div class="cal-month-grid">`;
+    weekdayNames.forEach((w) => { html += `<div class="cal-month-weekday">${w}</div>`; });
+    for (let i = 0; i < 42; i++) {
+      const d = addDays(gridStart, i);
+      const dateStr = ymd(d);
+      const dayEvents = grouped[dateStr] || [];
+      const isToday = dateStr === todayStr;
+      const isOutside = d.getMonth() !== month;
+      html += `<div class="cal-month-cell${isToday ? " is-today" : ""}${isOutside ? " is-outside" : ""}">
+        <div class="cal-month-cell-num">${d.getDate()}</div>`;
+      if (dayEvents.length) {
+        html += `<div class="cal-month-dots">`;
+        dayEvents.slice(0, 4).forEach((ev) => {
+          html += `<span class="event-dot" style="background:${feedColorFor(ev.feed_id)}"></span>`;
+        });
+        html += `</div>`;
+        if (dayEvents.length > 4) html += `<div class="cal-month-more">+${dayEvents.length - 4}</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+    calendarPageBody.innerHTML = html;
+  }
+
+  function renderCalendarPage() {
+    const todayStr = ymd(new Date());
+    if (calendarPageView === "agenda") {
+      const rangeEnd = addDays(calendarPageAnchor, 6);
+      calendarPageRange.textContent = `${calendarPageAnchor.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${rangeEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+      calendarPageBody.innerHTML = `<div class="agenda-days" id="calendarPageAgendaDays"></div>`;
+      renderAgendaInto(el("calendarPageAgendaDays"), calendarWindowEvents, { fromDate: calendarPageAnchor, toDate: rangeEnd, todayStr });
+    } else if (calendarPageView === "week") {
+      renderWeekView(todayStr);
+    } else {
+      renderMonthView(todayStr);
+    }
+    updateCalNavButtonsState();
+  }
+
+  function navigateCalendarPage(direction) {
+    registerInteraction();
+    if (calendarPageView === "month") {
+      const d = new Date(calendarPageAnchor);
+      d.setMonth(d.getMonth() + direction);
+      calendarPageAnchor = clampToWindow(d);
+    } else {
+      calendarPageAnchor = clampToWindow(addDays(calendarPageAnchor, direction * 7));
+    }
+    renderCalendarPage();
+  }
+
+  async function openCalendarPage() {
+    registerInteraction();
+    if (!calendarPageOverlay) return;
+    calendarPageView = "agenda";
+    calendarPageAnchor = new Date();
+    updateCalTabsUI();
+    calendarPageOverlay.hidden = false;
+    calendarPageBody.innerHTML = `<div class="agenda-days"><div class="agenda-day-empty">Loading…</div></div>`;
+    await refreshCalendarWindowEvents();
+    renderCalendarPage();
+  }
+
+  function closeCalendarPage() {
+    if (calendarPageOverlay) calendarPageOverlay.hidden = true;
+    registerInteraction();
+  }
+
+  if (openFullCalendarBtn) openFullCalendarBtn.addEventListener("click", openCalendarPage);
+  if (calendarPageClose) calendarPageClose.addEventListener("click", closeCalendarPage);
+  if (calendarPageOverlay) {
+    calendarPageOverlay.addEventListener("click", (e) => {
+      if (e.target === calendarPageOverlay) closeCalendarPage();
+    });
+  }
+  if (calendarPagePrev) calendarPagePrev.addEventListener("click", () => navigateCalendarPage(-1));
+  if (calendarPageNext) calendarPageNext.addEventListener("click", () => navigateCalendarPage(1));
+  if (calendarPageTodayBtn) {
+    calendarPageTodayBtn.addEventListener("click", () => {
+      registerInteraction();
+      calendarPageAnchor = new Date();
+      renderCalendarPage();
+    });
+  }
+  if (calendarPageTabs) {
+    calendarPageTabs.addEventListener("click", (e) => {
+      const btn = e.target.closest(".cal-tab");
+      if (!btn) return;
+      registerInteraction();
+      calendarPageView = btn.dataset.calView;
+      updateCalTabsUI();
+      renderCalendarPage();
+    });
   }
 
   // ---------- view / dock navigation ----------
@@ -973,6 +1322,7 @@
     document.querySelectorAll(".dock-item").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.view === view);
     });
+    if (view === "calendar") loadAndRenderAgendaPanel();
   }
 
   dock.addEventListener("click", (e) => {
@@ -2027,6 +2377,7 @@
     updateDataSourceHint();
     await withTimeout(loadWatchTiles(), 8000);
     await withTimeout(loadSlideshowImages(), 8000);
+    await withTimeout(loadCalendarFeeds(), 8000);
 
     setInterval(async () => {
       await withTimeout(loadFromSupabase(), 8000);
