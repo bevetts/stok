@@ -126,6 +126,7 @@
   const addFeedBtn = el("addFeedBtn");
   const feedHint = el("feedHint");
   const settingVoice = el("settingVoice");
+  const voicePreviewBtn = el("voicePreviewBtn");
   const settingStartTime = el("settingStartTime");
   const toggleVoice = el("toggleVoice");
   const toggleAutoStart = el("toggleAutoStart");
@@ -1216,10 +1217,23 @@
     autoOpt.value = "";
     autoOpt.textContent = "Default voice";
     settingVoice.appendChild(autoOpt);
-    voices.forEach((v) => {
+
+    // Network voices (server-rendered, e.g. Chrome's "Google" voices) sound
+    // far more natural than the local/device ones most platforms fall back
+    // to by default — surface those first instead of insertion order, and
+    // label which is which so it's obvious what to try.
+    const sorted = [...voices].sort((a, b) => {
+      if (a.localService !== b.localService) return a.localService ? 1 : -1;
+      const aEn = a.lang.startsWith("en") ? 0 : 1;
+      const bEn = b.lang.startsWith("en") ? 0 : 1;
+      if (aEn !== bEn) return aEn - bEn;
+      return a.name.localeCompare(b.name);
+    });
+
+    sorted.forEach((v) => {
       const opt = document.createElement("option");
       opt.value = v.voiceURI;
-      opt.textContent = `${v.name} (${v.lang})`;
+      opt.textContent = `${v.name} (${v.lang}) · ${v.localService ? "Device" : "Network"}`;
       settingVoice.appendChild(opt);
     });
     settingVoice.value = settings.voiceURI || "";
@@ -1228,6 +1242,23 @@
   if (window.speechSynthesis) {
     loadVoices();
     window.speechSynthesis.onvoiceschanged = loadVoices;
+  }
+
+  function previewVoice() {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const chosen = voices.find((v) => v.voiceURI === settingVoice.value);
+    const utter = new SpeechSynthesisUtterance("Good morning. This is a preview of this voice.");
+    if (chosen) utter.voice = chosen;
+    utter.rate = 0.98;
+    window.speechSynthesis.speak(utter);
+  }
+
+  if (voicePreviewBtn) {
+    voicePreviewBtn.addEventListener("click", () => {
+      registerInteraction();
+      previewVoice();
+    });
   }
 
   function speak(text) {
