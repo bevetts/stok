@@ -443,10 +443,14 @@
 
         <section class="settings-section">
           <h3 class="settings-section-title">Briefing</h3>
-          <label class="field">
+          <div class="field">
             <span class="field-label">Voice</span>
-            <select id="settingVoice"></select>
-          </label>
+            <div class="wallpaper-row">
+              <select id="settingVoice"></select>
+              <button class="pill-btn" id="voicePreviewBtn" type="button">Preview</button>
+            </div>
+            <div class="field-hint">Voices marked "Network" are usually far more natural than the "Device" ones — try a few.</div>
+          </div>
 
           <div class="field field-row">
             <span class="field-label">Speak briefing aloud</span>
