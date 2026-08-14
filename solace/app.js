@@ -576,15 +576,16 @@
       }
     }
 
-    const { data: eventRows, error: eventsErr } = await db.rpc("get_todays_events");
+    const { data: eventRows, error: eventsErr } = await db.rpc("get_upcoming_events");
     if (eventsErr) {
       anyFailed = true;
-      console.warn("Solace: couldn't load today's events from Supabase.", eventsErr);
+      console.warn("Solace: couldn't load upcoming events from Supabase.", eventsErr);
     } else {
       anySucceeded = true;
       // Unconditional: a genuinely empty day is real data, not a reason
       // to keep whatever was there before.
       solaceData.calendar = (eventRows || []).map((e) => ({
+        date: e.event_date,
         time: e.display_time,
         title: e.title.trim(),
         location: (e.location || "").trim(),
@@ -938,17 +939,31 @@
       }
     }
 
-    // Calendar panel
+    // Calendar panel — grouped into Today / Tomorrow, with events that have
+    // already happened today struck through rather than dropped, so the
+    // list still reads as "here's the whole day" as it progresses.
     const eventList = el("eventList");
     eventList.innerHTML = "";
     if (!solaceData.calendar.length) {
       const li = document.createElement("li");
       li.className = "event-empty";
-      li.textContent = "Nothing scheduled today.";
+      li.textContent = "Nothing scheduled today or tomorrow.";
       eventList.appendChild(li);
     } else {
+      const today = pacificToday();
+      let currentSection = null;
       solaceData.calendar.forEach((ev) => {
+        const section = !ev.date || ev.date === today ? "Today" : "Tomorrow";
+        if (section !== currentSection) {
+          currentSection = section;
+          const header = document.createElement("li");
+          header.className = "event-day-header";
+          header.textContent = section;
+          eventList.appendChild(header);
+        }
+
         const li = document.createElement("li");
+        if (isEventPast(ev)) li.className = "event-past";
         li.innerHTML = `
           <span class="event-time">${ev.time}</span>
           <span class="event-body">
