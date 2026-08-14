@@ -82,14 +82,56 @@ function getWeatherSummary() {
   };
 }
 
+// Events carry a plain YYYY-MM-DD `date` (the Pacific calendar day they
+// belong to) and a `time` string like "4:30 PM" or "All day". Comparing
+// against "now" is done in those same terms rather than storing a real
+// timestamp, since that's all the sync currently gives us to work with.
+function pacificToday() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function parseDisplayTimeMinutes(timeStr) {
+  if (!timeStr) return null;
+  const m = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!m) return null; // "All day" and anything unrecognized never counts as past
+  let hour = parseInt(m[1], 10) % 12;
+  if (/pm/i.test(m[3])) hour += 12;
+  return hour * 60 + parseInt(m[2], 10);
+}
+
+function nowMinutesPacific() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const m = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return (h === 24 ? 0 : h) * 60 + m;
+}
+
+function isEventPast(ev) {
+  if (!ev.date || ev.date !== pacificToday()) return false; // only today's own events can be "past"
+  const mins = parseDisplayTimeMinutes(ev.time);
+  if (mins == null) return false; // all-day events are never struck through
+  return mins < nowMinutesPacific();
+}
+
 function getNextEvent() {
-  return solaceData.calendar[0] || null;
+  return solaceData.calendar.find((ev) => !isEventPast(ev)) || null;
 }
 
 function getCalendarSummary() {
-  const events = solaceData.calendar;
+  const today = pacificToday();
+  const events = solaceData.calendar.filter((ev) => (!ev.date || ev.date === today) && !isEventPast(ev));
   if (!events.length) {
-    return { events, spoken: "You have a light day — nothing on the calendar yet." };
+    return { events, spoken: "You have a light day — nothing left on the calendar today." };
   }
 
   const [first, ...rest] = events;
