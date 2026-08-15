@@ -105,10 +105,8 @@
             <div class="widget-icon calendar-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5"/><path d="M3.5 9.5h17M8 3v3M16 3v3"/></svg>
             </div>
-            <div class="preview-label">Next event</div>
-            <div class="preview-main" id="nextEventTime">9:00 AM</div>
-            <div class="preview-sub" id="nextEventTitle">Morning Appointment</div>
-            <div class="preview-foot" id="nextEventLeaveBy">Leave by 8:25 AM</div>
+            <div class="preview-label">Today</div>
+            <ul class="home-agenda-list" id="homeAgendaList"></ul>
           </div>
         </div>
       </section>
@@ -160,8 +158,9 @@
         <button class="panel-close" data-close-panel aria-label="Close">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
-        <h2 class="panel-title">Up next</h2>
-        <ul class="event-list" id="eventList"></ul>
+        <h2 class="panel-title">This week</h2>
+        <div class="agenda-days" id="agendaDays"></div>
+        <button class="pill-btn pill-btn-large" id="openFullCalendarBtn">Full calendar</button>
       </div>
     </section>
 
@@ -327,6 +326,37 @@
     </div>
   </div>
 
+  <!-- Full calendar page overlay -->
+  <div class="settings-overlay" id="calendarPageOverlay" hidden>
+    <div class="settings-panel calendar-page-panel">
+      <div class="settings-header calendar-page-header">
+        <div class="calendar-page-header-row">
+          <div class="calendar-page-tabs" id="calendarPageTabs">
+            <button class="cal-tab active" data-cal-view="agenda" type="button">Agenda</button>
+            <button class="cal-tab" data-cal-view="week" type="button">Week</button>
+            <button class="cal-tab" data-cal-view="month" type="button">Month</button>
+          </div>
+          <button class="icon-btn" id="calendarPageClose" aria-label="Close">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="calendar-page-nav">
+          <button class="icon-btn" id="calendarPagePrev" aria-label="Previous">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 6l-6 6 6 6"/></svg>
+          </button>
+          <span class="calendar-page-range" id="calendarPageRange">This week</span>
+          <button class="icon-btn" id="calendarPageNext" aria-label="Next">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+          <button class="ghost-btn calendar-page-today-btn" id="calendarPageTodayBtn" type="button">Today</button>
+        </div>
+      </div>
+
+      <div class="settings-body calendar-page-body" id="calendarPageBody"></div>
+    </div>
+  </div>
+
   <!-- Settings overlay -->
   <div class="settings-overlay" id="settingsOverlay" hidden>
     <div class="settings-panel">
@@ -374,14 +404,14 @@
         </section>
 
         <section class="settings-section">
-          <h3 class="settings-section-title">Calendars</h3>
+          <h3 class="settings-section-title">Calendar accounts</h3>
           <div class="field">
-            <span class="field-label">Connected feeds</span>
+            <span class="field-label">Connected calendars</span>
           <ul class="feed-list" id="calendarFeedList"></ul>
           <div class="feed-add-row">
-            <input type="text" id="newFeedLabel" placeholder="Label (e.g. Chayla)" class="feed-label-input" />
-            <input type="url" id="newFeedUrl" placeholder="webcal:// or https:// calendar link" class="feed-url-input" />
-            <button class="pill-btn" id="addFeedBtn">Add</button>
+            <input type="text" id="newFeedLabel" placeholder="Display name (e.g. Chayla — Personal)" class="feed-label-input" />
+            <input type="url" id="newFeedUrl" placeholder="Paste calendar link (webcal:// or https://)" class="feed-url-input" />
+            <button class="pill-btn" id="addFeedBtn">Add calendar</button>
           </div>
           <div class="field-hint" id="feedHint">From the Calendar app: calendar name → Share Calendar → Public Calendar, then copy the link.</div>
           </div>
