@@ -1041,7 +1041,14 @@
   function renderHomeAgenda() {
     if (!homeAgendaList) return;
     homeAgendaList.innerHTML = "";
-    const events = solaceData.calendar.slice(0, 4);
+    // solaceData.calendar now covers today AND tomorrow (get_upcoming_events,
+    // so "next event" can roll over once today's are done) — the home glance
+    // widget is labeled "Today" and must only ever show today's own
+    // still-upcoming events, not spill into tomorrow or list ones already past.
+    const today = pacificToday();
+    const events = solaceData.calendar
+      .filter((ev) => (!ev.date || ev.date === today) && !isEventPast(ev))
+      .slice(0, 4);
     if (!events.length) {
       const li = document.createElement("li");
       li.className = "home-agenda-empty";
@@ -1139,8 +1146,10 @@
 
   // ---------- full calendar page (Agenda / Week / Month) ----------
 
-  const CAL_SYNC_PAST_DAYS = 7;
-  const CAL_SYNC_FUTURE_DAYS = 60; // must match the calendar-sync edge function's window
+  // Must match solace-calendar-sync's actual sync window, or prev/next
+  // navigation lets you page into days that were never synced.
+  const CAL_SYNC_PAST_DAYS = 1;
+  const CAL_SYNC_FUTURE_DAYS = 60;
 
   let calendarPageView = "agenda";
   let calendarPageAnchor = new Date();
