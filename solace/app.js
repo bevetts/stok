@@ -584,15 +584,16 @@
       }
     }
 
-    const { data: eventRows, error: eventsErr } = await db.rpc("get_todays_events");
+    const { data: eventRows, error: eventsErr } = await db.rpc("get_upcoming_events");
     if (eventsErr) {
       anyFailed = true;
-      console.warn("Solace: couldn't load today's events from Supabase.", eventsErr);
+      console.warn("Solace: couldn't load upcoming events from Supabase.", eventsErr);
     } else {
       anySucceeded = true;
       // Unconditional: a genuinely empty day is real data, not a reason
       // to keep whatever was there before.
       solaceData.calendar = (eventRows || []).map((e) => ({
+        date: e.event_date,
         time: e.display_time,
         title: e.title.trim(),
         location: (e.location || "").trim(),
