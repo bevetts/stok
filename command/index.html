@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Blake Command Center</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='none' stroke='%23a397e0' stroke-width='1.6'/%3E%3Ccircle cx='12' cy='12' r='3' fill='%23a397e0'/%3E%3C/svg%3E" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="../solace/icons/apple-touch-icon.png" />
+<meta name="theme-color" content="#0a0a10" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Blake Command" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div class="bg"></div>
+  <div id="devBypassBanner" class="dev-bypass-banner" hidden>
+    Dev mode — Google sign-in isn't configured, this route is not actually gated yet.
+  </div>
+
+  <div id="authGate" class="auth-gate">
+    <div class="auth-gate-inner">
+      <div class="auth-mark"><span class="auth-mark-dot"></span></div>
+      <h1>Blake Command Center</h1>
+      <p>Sign in with Google to continue.</p>
+      <button class="pill-btn-sm" id="googleSignInBtn">Sign in with Google</button>
+      <p class="auth-error" id="authError" hidden></p>
+    </div>
+  </div>
+
+  <div id="app" class="app" hidden>
+
+    <header class="topbar">
+      <div class="wordmark">BLAKE <span class="wordmark-thin">COMMAND</span></div>
+      <div class="status-cluster">
+        <span class="clock-pill" id="headerClock">--:--</span>
+        <button class="icon-btn" id="fullscreenBtn" aria-label="Fullscreen" title="Fullscreen">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3H4v4M16 3h4v4M8 21H4v-4M16 21h4v-4"/></svg>
+        </button>
+        <button class="icon-btn" id="signOutBtn" aria-label="Sign out" title="Sign out">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="greeting-block">
+      <div class="greeting" id="greetingText">Good morning, Blake.</div>
+      <div class="date-line" id="dateLine">—</div>
+    </div>
+
+    <section class="now-section">
+      <h2 class="section-label">Now</h2>
+      <ul class="now-list" id="nowList"></ul>
+    </section>
+
+    <div class="grid-main">
+      <section class="panel todos-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">To-dos</h2>
+          <span class="panel-meta" id="todoSummary">0 open · 0 completed</span>
+        </div>
+        <div class="todo-add-row">
+          <input type="text" id="newTodoInput" placeholder="Add a task…" />
+          <button id="addTodoBtn" class="pill-btn-sm">Add</button>
+        </div>
+        <ul class="todo-list" id="openTodoList"></ul>
+        <details class="completed-details" id="completedDetails">
+          <summary>Completed</summary>
+          <ul class="todo-list todo-list-completed" id="completedTodoList"></ul>
+        </details>
+      </section>
+
+      <section class="panel weather-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Weather</h2>
+        </div>
+        <div id="weatherBody"></div>
+      </section>
+
+      <section class="panel calendar-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Today's agenda</h2>
+        </div>
+        <div id="calendarBody"></div>
+      </section>
+
+      <section class="panel gmail-panel">
+        <div class="panel-head">
+          <h2 class="panel-title">Gmail</h2>
+        </div>
+        <div id="gmailBody"></div>
+      </section>
+    </div>
+
+    <section class="panel quicklaunch-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Quick launch</h2>
+        <button id="editLinksBtn" class="ghost-btn-sm">Edit</button>
+      </div>
+      <div class="quicklaunch-grid" id="quickLaunchGrid"></div>
+      <div class="quicklaunch-add-row" id="quickLaunchAddRow" hidden>
+        <input type="text" name="emoji" id="newLinkEmoji" placeholder="🔗" maxlength="4" />
+        <input type="text" name="label" id="newLinkLabel" placeholder="Label" />
+        <input type="url" name="url" id="newLinkUrl" placeholder="https://…" />
+        <button id="addLinkBtn" class="pill-btn-sm">Add</button>
+      </div>
+    </section>
+
+    <details class="collapsible-section" id="attentionSection">
+      <summary>Needs attention</summary>
+      <div class="attention-body" id="attentionBody"></div>
+    </details>
+
+    <details class="collapsible-section" id="briefingSection">
+      <summary>Briefing</summary>
+      <div class="briefing-body" id="briefingBody"></div>
+    </details>
+
+  </div>
+
+  <script src="../solace/vendor/supabase.js"></script>
+  <script src="../shared/storage.js"></script>
+  <script src="../shared/weather.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
