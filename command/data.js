@@ -1,0 +1,160 @@
+/*
+ * Blake Command Center — data layer
+ *
+ * Same pattern as solace/data.js: a plain object holding whatever's been
+ * loaded, plus pure functions that derive what the UI shows. All local
+ * (non-Google) state lives under the `blake_command_*` localStorage
+ * namespace — see shared/storage.js — so it can never collide with
+ * Solace's `solace.*` keys or Solace's Supabase rows.
+ */
+
+const TASKS_KEY = "blake_command_tasks";
+const LINKS_KEY = "blake_command_links";
+const SESSION_KEY = "blake_command_session";
+
+const commandData = {
+  weather: null, // null until loaded; render code treats that as "unavailable"
+  tasks: [],
+  links: [],
+  calendar: { status: "not_connected", events: [] }, // status: "not_connected" | "loading" | "connected" | "error"
+  gmail: { status: "not_connected", unreadCount: null, messages: [] },
+};
+
+// ---------- tasks ----------
+
+function loadTasks() {
+  commandData.tasks = SharedStorage.read(TASKS_KEY, []);
+}
+
+function saveTasks() {
+  SharedStorage.write(TASKS_KEY, commandData.tasks);
+}
+
+function addTask(title) {
+  const trimmed = title.trim();
+  if (!trimmed) return;
+  commandData.tasks.unshift({
+    id: `t_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    title: trimmed,
+    done: false,
+    createdAt: Date.now(),
+  });
+  saveTasks();
+}
+
+function toggleTask(id) {
+  const task = commandData.tasks.find((t) => t.id === id);
+  if (!task) return;
+  task.done = !task.done;
+  task.completedAt = task.done ? Date.now() : undefined;
+  saveTasks();
+}
+
+function deleteTask(id) {
+  commandData.tasks = commandData.tasks.filter((t) => t.id !== id);
+  saveTasks();
+}
+
+function getOpenTasks() {
+  return commandData.tasks.filter((t) => !t.done).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+function getCompletedTasks() {
+  return commandData.tasks
+    .filter((t) => t.done)
+    .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+}
+
+// ---------- quick launch links ----------
+
+const DEFAULT_LINKS = [
+  { id: "l_gmail", label: "Gmail", url: "https://mail.google.com/", emoji: "📧" },
+  { id: "l_gcal", label: "Calendar", url: "https://calendar.google.com/", emoji: "📅" },
+  { id: "l_github", label: "GitHub", url: "https://github.com/", emoji: "🐙" },
+  { id: "l_supabase", label: "Supabase", url: "https://supabase.com/dashboard", emoji: "🟢" },
+];
+
+function loadLinks() {
+  commandData.links = SharedStorage.read(LINKS_KEY, DEFAULT_LINKS);
+}
+
+function saveLinks() {
+  SharedStorage.write(LINKS_KEY, commandData.links);
+}
+
+function addLink({ label, url, emoji }) {
+  const trimmedLabel = (label || "").trim();
+  const trimmedUrl = (url || "").trim();
+  if (!trimmedLabel || !trimmedUrl) return;
+  commandData.links.push({
+    id: `l_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    label: trimmedLabel,
+    url: /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`,
+    emoji: (emoji || "").trim() || "🔗",
+  });
+  saveLinks();
+}
+
+function deleteLink(id) {
+  commandData.links = commandData.links.filter((l) => l.id !== id);
+  saveLinks();
+}
+
+// ---------- session (Google sign-in gate) ----------
+
+function getSessionToken() {
+  return SharedStorage.read(SESSION_KEY, null);
+}
+
+function setSessionToken(token) {
+  SharedStorage.write(SESSION_KEY, token);
+}
+
+function clearSessionToken() {
+  SharedStorage.remove(SESSION_KEY);
+}
+
+// ---------- derived: "Now" section ----------
+
+// Only what Blake would actually need to act on — never a metric for its
+// own sake. Each entry is { text, tone } where tone drives styling
+// ("action" | "info" | "muted").
+function getNowItems() {
+  const items = [];
+
+  const openTasks = getOpenTasks();
+  if (openTasks.length) {
+    items.push({ text: `${openTasks.length} open task${openTasks.length === 1 ? "" : "s"}`, tone: "action" });
+  }
+
+  if (commandData.calendar.status === "connected") {
+    const next = commandData.calendar.events.find((e) => !e.isPast);
+    if (next) {
+      items.push({ text: `Next: ${next.title} at ${next.displayTime}`, tone: "action" });
+    }
+  } else if (commandData.calendar.status === "not_connected") {
+    items.push({ text: "Calendar not connected", tone: "muted" });
+  } else if (commandData.calendar.status === "error") {
+    items.push({ text: "Calendar unavailable right now", tone: "muted" });
+  }
+
+  if (commandData.gmail.status === "connected") {
+    if (commandData.gmail.unreadCount) {
+      items.push({ text: `${commandData.gmail.unreadCount} unread in Gmail`, tone: "info" });
+    }
+  } else if (commandData.gmail.status === "not_connected") {
+    items.push({ text: "Gmail not connected", tone: "muted" });
+  }
+
+  if (!items.length) {
+    items.push({ text: "Nothing pressing.", tone: "muted" });
+  }
+
+  return items;
+}
+
+function getDayPeriodCommand(hour) {
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
+}

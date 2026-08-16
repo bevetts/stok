@@ -124,7 +124,11 @@ function isEventPast(ev) {
 }
 
 function getNextEvent() {
-  return solaceData.calendar.find((ev) => !isEventPast(ev)) || null;
+  // All-day items have no specific time to leave for or count down to, so
+  // they'd be misleading as "next event" — an appointment 20 minutes away
+  // is what that card and the leave-by pill are for. They still show up
+  // normally in the full calendar list.
+  return solaceData.calendar.find((ev) => !isEventPast(ev) && ev.time !== "All day") || null;
 }
 
 function getCalendarSummary() {
