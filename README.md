@@ -51,7 +51,7 @@ Set these on the Supabase project (Dashboard → Edge Functions → Manage secre
 | `GOOGLE_CLIENT_ID` | both | Must match the constant in `command/app.js` |
 | `GOOGLE_CLIENT_SECRET` | `blake-google-oauth` | Never committed, never sent to the browser |
 | `ALLOWED_EMAIL` | `blake-google-oauth` | Only this Google account can sign in |
-| `COMMAND_APP_URL` | `blake-google-oauth` | Fixed redirect target after sign-in, e.g. `https://yourdomain.com/command/` — deliberately not client-supplied, to avoid an open-redirect that could leak a session token |
+| `COMMAND_APP_URL` | `blake-google-oauth` | Fixed redirect target after sign-in: `https://bevetts.github.io/stok/command/index.html` — deliberately not client-supplied, to avoid an open-redirect that could leak a session token |
 
 `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are already available to every Edge Function automatically.
 
