@@ -79,7 +79,11 @@ Deno.serve(async (req) => {
     return new Response("Server is missing GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / ALLOWED_EMAIL secrets.", { status: 500 });
   }
 
-  const redirectUri = `${url.origin}/functions/v1/blake-google-oauth/callback`;
+  // Hardcoded rather than derived from url.origin — Supabase's edge
+  // runtime can present the incoming request's origin differently than
+  // the public-facing URL, and Google requires this to match the
+  // authorize request's redirect_uri byte-for-byte.
+  const redirectUri = "https://pftwellkloafqbpnhpyt.supabase.co/functions/v1/blake-google-oauth/callback";
 
   try {
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
