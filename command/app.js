@@ -506,6 +506,7 @@
       commandData.gmail = {
         status: "connected",
         unreadCount: payload.gmail ? payload.gmail.unreadCount : 0,
+        importantUnreadCount: payload.gmail ? payload.gmail.importantUnreadCount : 0,
         messages: payload.gmail ? payload.gmail.messages : [],
       };
     } catch (err) {
@@ -527,8 +528,9 @@
     if (!body) return;
     const rows = [];
 
-    if (commandData.gmail.status === "connected" && commandData.gmail.messages.length) {
-      rows.push({ label: `${commandData.gmail.messages.length} Gmail message${commandData.gmail.messages.length === 1 ? "" : "s"} flagged`, kind: "live" });
+    if (commandData.gmail.status === "connected" && commandData.gmail.importantUnreadCount) {
+      const n = commandData.gmail.importantUnreadCount;
+      rows.push({ label: `${n} Gmail message${n === 1 ? "" : "s"} starred or marked important`, kind: "live" });
     }
 
     if (!rows.length) {

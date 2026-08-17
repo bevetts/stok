@@ -110,14 +110,28 @@ async function fetchGmailSummary(accessToken: string, accountEmail: string) {
   const unreadLabel = unreadLabelRes.ok ? await unreadLabelRes.json() : null;
   const unreadCount = unreadLabel?.messagesUnread ?? 0;
 
-  if (!unreadCount) return { unreadCount: 0, messages: [] };
+  if (!unreadCount) return { unreadCount: 0, importantUnreadCount: 0, messages: [] };
 
-  const listRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread&maxResults=8", {
-    headers: authHeader,
-  });
+  // A real inbox with years of unread mail is dominated by promotions/social
+  // noise — "most recent unread" alone surfaces marketing junk, not anything
+  // that needs Blake. category:primary excludes Gmail's own Promotions/
+  // Social/Updates/Forums tabs, which does the heavy lifting here.
+  const listRes = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread category:primary&maxResults=10",
+    { headers: authHeader }
+  );
   if (!listRes.ok) throw new Error(`Gmail list failed: ${listRes.status} ${await listRes.text()}`);
   const listData = await listRes.json();
   const ids: string[] = (listData.messages || []).map((m: any) => m.id);
+
+  // Cheap approximate count (no per-message fetch) for a genuine "needs a
+  // look" signal, as opposed to the raw unread total which is mostly noise.
+  const importantRes = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages?q=is:unread (is:important OR is:starred)&maxResults=1",
+    { headers: authHeader }
+  );
+  const importantData = importantRes.ok ? await importantRes.json() : null;
+  const importantUnreadCount = importantData?.resultSizeEstimate ?? 0;
 
   const messages = await Promise.all(
     ids.map(async (id) => {
@@ -144,7 +158,7 @@ async function fetchGmailSummary(accessToken: string, accountEmail: string) {
     })
   );
 
-  return { unreadCount, messages: messages.filter(Boolean) as any[] };
+  return { unreadCount, importantUnreadCount, messages: messages.filter(Boolean) as any[] };
 }
 
 async function validateSession(supabase: any, req: Request) {
@@ -183,7 +197,7 @@ Deno.serve(async (req) => {
   const { data: accounts, error: accountsErr } = await supabase.from("blake_google_accounts").select("*");
   if (accountsErr) return jsonResponse({ error: "Failed to load connected accounts" }, 500);
   if (!accounts || !accounts.length) {
-    return jsonResponse({ accounts: [], calendar: [], gmail: { unreadCount: 0, messages: [] } });
+    return jsonResponse({ accounts: [], calendar: [], gmail: { unreadCount: 0, importantUnreadCount: 0, messages: [] } });
   }
 
   const results = await Promise.all(
@@ -209,7 +223,7 @@ Deno.serve(async (req) => {
         return { email: account.email, ok: true, calendar, gmail };
       } catch (err) {
         console.error(`blake-google-data: failed for ${account.email}:`, err);
-        return { email: account.email, ok: false, calendar: [] as any[], gmail: { unreadCount: 0, messages: [] as any[] } };
+        return { email: account.email, ok: false, calendar: [] as any[], gmail: { unreadCount: 0, importantUnreadCount: 0, messages: [] as any[] } };
       }
     })
   );
@@ -232,6 +246,7 @@ Deno.serve(async (req) => {
   if (next) next.isNext = true;
 
   const unreadCount = results.reduce((sum, r) => sum + (r.gmail.unreadCount || 0), 0);
+  const importantUnreadCount = results.reduce((sum, r) => sum + (r.gmail.importantUnreadCount || 0), 0);
   const allMessages = results.flatMap((r) => r.gmail.messages);
   allMessages.sort((a: any, b: any) => {
     const score = (m: any) => (m.starred ? 2 : 0) + (m.important ? 1 : 0);
@@ -243,6 +258,6 @@ Deno.serve(async (req) => {
     accounts: accounts.map((a: any) => ({ email: a.email, label: a.label })),
     accountErrors: results.filter((r) => !r.ok).map((r) => r.email),
     calendar,
-    gmail: { unreadCount, messages: allMessages.slice(0, 6) },
+    gmail: { unreadCount, importantUnreadCount, messages: allMessages.slice(0, 6) },
   });
 });
