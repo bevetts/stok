@@ -12,6 +12,7 @@ const TASKS_KEY = "blake_command_tasks";
 const LINKS_KEY = "blake_command_links";
 const SESSION_KEY = "blake_command_session";
 const DISMISSED_KEY = "blake_command_dismissed";
+const NOTES_KEY = "blake_command_notes";
 
 const commandData = {
   weather: null, // null until loaded; render code treats that as "unavailable"
@@ -23,6 +24,7 @@ const commandData = {
   accountErrors: [], // emails whose fetch failed this round (token revoked, etc.)
   tomorrow: null, // { title, displayTime, account } | null — first event tomorrow
   sports: [], // [{ team, line }] — line is null if that team's fetch failed
+  notes: [],
 };
 
 // Small fixed palette, cycled by connection order — good enough to tell
@@ -124,6 +126,36 @@ function addLink({ label, url, emoji }) {
 function deleteLink(id) {
   commandData.links = commandData.links.filter((l) => l.id !== id);
   saveLinks();
+}
+
+// ---------- quick notes ----------
+//
+// Deliberately separate from To-dos: a todo is a commitment to act on,
+// this is just a scratch pad for a passing thought you don't want to lose
+// but also don't want cluttering your task list.
+
+function loadNotes() {
+  commandData.notes = SharedStorage.read(NOTES_KEY, []);
+}
+
+function saveNotes() {
+  SharedStorage.write(NOTES_KEY, commandData.notes);
+}
+
+function addNote(text) {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  commandData.notes.unshift({
+    id: `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    text: trimmed,
+    createdAt: Date.now(),
+  });
+  saveNotes();
+}
+
+function deleteNote(id) {
+  commandData.notes = commandData.notes.filter((n) => n.id !== id);
+  saveNotes();
 }
 
 // ---------- dismissed Gmail attention items ----------
