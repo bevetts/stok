@@ -403,7 +403,10 @@
     body.innerHTML = "";
     const unreadLine = document.createElement("div");
     unreadLine.className = "gmail-unread-count";
-    unreadLine.textContent = `${gmail.unreadCount} unread`;
+    // Raw context only, deliberately not the headline — see Now/Attention
+    // for why: these numbers compound over years of unread mail and
+    // aren't a "do this now" signal on their own.
+    unreadLine.textContent = `${gmail.unreadCount.toLocaleString()} unread total · ${gmail.importantUnreadCount.toLocaleString()} flagged all-time`;
     body.appendChild(unreadLine);
 
     const ul = document.createElement("ul");
@@ -528,9 +531,9 @@
     if (!body) return;
     const rows = [];
 
-    if (commandData.gmail.status === "connected" && commandData.gmail.importantUnreadCount) {
-      const n = commandData.gmail.importantUnreadCount;
-      rows.push({ label: `${n} Gmail message${n === 1 ? "" : "s"} starred or marked important`, kind: "live" });
+    if (commandData.gmail.status === "connected" && commandData.gmail.messages.length) {
+      const n = commandData.gmail.messages.length;
+      rows.push({ label: `${n} Gmail message${n === 1 ? "" : "s"} worth a look`, kind: "live" });
     }
 
     if (!rows.length) {
