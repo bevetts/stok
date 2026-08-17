@@ -96,7 +96,10 @@ Deno.serve(async (req) => {
     if (!tokenRes.ok) {
       const body = await tokenRes.text();
       console.error("Google token exchange failed:", tokenRes.status, body);
-      return redirectWithError("Google sign-in failed during token exchange.");
+      // Temporary: surface Google's actual error inline so this is debuggable
+      // without Edge Function log access. Safe to do — it's an OAuth error
+      // code/description, never a token or secret.
+      return redirectWithError(`Token exchange failed: ${body.slice(0, 300)}`);
     }
     const tokenData = await tokenRes.json();
 
