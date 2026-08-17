@@ -18,7 +18,25 @@ const commandData = {
   links: [],
   calendar: { status: "not_connected", events: [] }, // status: "not_connected" | "loading" | "connected" | "error"
   gmail: { status: "not_connected", unreadCount: null, messages: [] },
+  accounts: [], // connected Google accounts, e.g. [{ email, label }]
+  accountErrors: [], // emails whose fetch failed this round (token revoked, etc.)
 };
+
+// Small fixed palette, cycled by connection order — good enough to tell
+// two or three accounts apart at a glance without needing per-account
+// color customization.
+const ACCOUNT_COLORS = ["#a397e0", "#7fd8a0", "#e0a05a", "#e08a8a", "#8fb4e0"];
+
+function accountColor(email) {
+  const idx = commandData.accounts.findIndex((a) => a.email === email);
+  return ACCOUNT_COLORS[idx >= 0 ? idx % ACCOUNT_COLORS.length : 0];
+}
+
+function accountLabel(email) {
+  const account = commandData.accounts.find((a) => a.email === email);
+  if (!account) return email || "";
+  return account.label || (email || "").split("@")[0];
+}
 
 // ---------- tasks ----------
 

@@ -77,18 +77,24 @@
       response_type: "code",
       scope: GOOGLE_SCOPES,
       access_type: "offline",
-      prompt: "consent",
+      // select_account forces Google's account chooser rather than
+      // silently reusing whichever Google account this browser last
+      // used — necessary so "connect another account" actually lets you
+      // pick a different one instead of re-adding the same account.
+      prompt: "consent select_account",
     });
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
 
-  googleSignInBtn.addEventListener("click", () => {
+  function startGoogleSignIn() {
     if (!GOOGLE_CLIENT_ID) {
       showAuthError("Google sign-in isn't configured yet — add a Client ID in command/app.js first.");
       return;
     }
     window.location.href = buildGoogleAuthUrl();
-  });
+  }
+
+  googleSignInBtn.addEventListener("click", startGoogleSignIn);
 
   if (signOutBtn) {
     signOutBtn.addEventListener("click", () => {
@@ -343,16 +349,21 @@
       return;
     }
 
+    const multiAccount = commandData.accounts.length > 1;
+
     body.innerHTML = "";
     const ul = document.createElement("ul");
     ul.className = "agenda-list";
     cal.events.forEach((ev) => {
       const li = document.createElement("li");
       li.className = `agenda-row${ev.isPast ? " agenda-row-past" : ""}${ev.overlaps ? " agenda-row-overlap" : ""}${ev.isNext ? " agenda-row-next" : ""}`;
+      const dot = multiAccount && ev.account
+        ? `<span class="account-dot" style="background:${accountColor(ev.account)}" title="${escapeHtmlCmd(accountLabel(ev.account))}"></span>`
+        : "";
       li.innerHTML = `
         <span class="agenda-time">${escapeHtmlCmd(ev.displayTime)}</span>
         <span class="agenda-body">
-          <span class="agenda-title">${ev.isNext ? '<span class="agenda-next-badge">Next</span> ' : ""}${escapeHtmlCmd(ev.title)}</span>
+          <span class="agenda-title">${ev.isNext ? '<span class="agenda-next-badge">Next</span> ' : ""}${dot}${escapeHtmlCmd(ev.title)}</span>
           ${ev.location ? `<div class="agenda-loc">${escapeHtmlCmd(ev.location)}</div>` : ""}
         </span>
         ${ev.meetingLink && !ev.isPast ? `<a class="pill-btn-sm" href="${escapeHtmlCmd(ev.meetingLink)}" target="_blank" rel="noopener noreferrer">Join</a>` : ""}`;
@@ -387,6 +398,8 @@
       return;
     }
 
+    const multiAccount = commandData.accounts.length > 1;
+
     body.innerHTML = "";
     const unreadLine = document.createElement("div");
     unreadLine.className = "gmail-unread-count";
@@ -398,9 +411,12 @@
     gmail.messages.forEach((msg) => {
       const li = document.createElement("li");
       li.className = "gmail-row";
+      const dot = multiAccount && msg.account
+        ? `<span class="account-dot" style="background:${accountColor(msg.account)}" title="${escapeHtmlCmd(accountLabel(msg.account))}"></span>`
+        : "";
       li.innerHTML = `
         <span class="gmail-body">
-          <span class="gmail-sender">${escapeHtmlCmd(msg.sender)}</span>
+          <span class="gmail-sender">${dot}${escapeHtmlCmd(msg.sender)}</span>
           <span class="gmail-subject">${escapeHtmlCmd(msg.subject)}</span>
         </span>
         <a class="text-link" href="${escapeHtmlCmd(msg.link)}" target="_blank" rel="noopener noreferrer">Open</a>`;
@@ -408,6 +424,58 @@
     });
     body.appendChild(ul);
   }
+
+  // ---------- connected accounts ----------
+
+  function renderAccounts() {
+    const row = el("accountsRow");
+    if (!row) return;
+
+    if (!commandData.accounts.length) {
+      row.innerHTML = `<button class="text-link" id="connectAccountBtn">+ Connect a Google account</button>`;
+      el("connectAccountBtn").addEventListener("click", startGoogleSignIn);
+      return;
+    }
+
+    row.innerHTML = "";
+    commandData.accounts.forEach((account) => {
+      const chip = document.createElement("span");
+      chip.className = "account-chip";
+      const failed = commandData.accountErrors.includes(account.email);
+      chip.innerHTML = `
+        <span class="account-dot" style="background:${accountColor(account.email)}"></span>
+        <span>${escapeHtmlCmd(accountLabel(account.email))}</span>
+        ${failed ? '<span class="account-chip-error" title="Couldn\'t load this account">!</span>' : ""}
+        <button class="account-chip-remove" data-disconnect-email="${escapeHtmlCmd(account.email)}" aria-label="Disconnect ${escapeHtmlCmd(account.email)}">&times;</button>`;
+      row.appendChild(chip);
+    });
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "text-link account-add-btn";
+    addBtn.id = "connectAccountBtn";
+    addBtn.textContent = "+ Add account";
+    addBtn.addEventListener("click", startGoogleSignIn);
+    row.appendChild(addBtn);
+  }
+
+  document.addEventListener("click", async (e) => {
+    const removeBtn = e.target.closest("[data-disconnect-email]");
+    if (!removeBtn) return;
+    const email = removeBtn.dataset.disconnectEmail;
+    const token = getSessionToken();
+    if (!token) return;
+    removeBtn.disabled = true;
+    try {
+      await fetch(`${GOOGLE_DATA_ENDPOINT}?email=${encodeURIComponent(email)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (err) {
+      console.warn("Blake Command Center: couldn't disconnect account.", err);
+    }
+    await loadGoogleData();
+    renderAccounts();
+  });
 
   async function loadGoogleData() {
     const token = getSessionToken();
@@ -432,6 +500,8 @@
       if (!res.ok) throw new Error(`status ${res.status}`);
       const payload = await res.json();
 
+      commandData.accounts = payload.accounts || [];
+      commandData.accountErrors = payload.accountErrors || [];
       commandData.calendar = { status: "connected", events: payload.calendar || [] };
       commandData.gmail = {
         status: "connected",
@@ -444,6 +514,7 @@
       commandData.gmail.status = "error";
     }
 
+    renderAccounts();
     renderCalendar();
     renderGmail();
     renderNow();
@@ -517,6 +588,7 @@
     renderTodos();
     renderQuickLaunch();
     renderWeather();
+    renderAccounts();
     renderCalendar();
     renderGmail();
     renderAttention();

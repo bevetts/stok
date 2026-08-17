@@ -193,6 +193,50 @@ input:focus-visible {
   font-family: var(--font-mono);
 }
 
+.accounts-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.account-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+  background: var(--surface);
+  border: 1px solid var(--surface-border-soft);
+  border-radius: 999px;
+  padding: 4px 8px 4px 7px;
+}
+
+.account-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.account-chip-error {
+  color: #e08a8a;
+  font-weight: 700;
+  font-size: 10.5px;
+}
+
+.account-chip-remove {
+  color: var(--ink-faint);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 0 0 2px;
+}
+.account-chip-remove:hover { color: #e08a8a; }
+
+.account-add-btn { font-size: 11.5px; }
+
 /* ---------- Now ---------- */
 
 .section-label {
