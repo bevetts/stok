@@ -157,13 +157,14 @@ function getNowItems() {
   }
 
   if (commandData.gmail.status === "connected") {
-    // Raw unread count is noise on a real inbox (years of unread marketing
-    // mail) — the starred/important count is the actual "needs a look"
-    // signal, so that's what Now shows. The raw total still appears in the
-    // Gmail panel itself for context.
-    if (commandData.gmail.importantUnreadCount) {
-      const n = commandData.gmail.importantUnreadCount;
-      items.push({ text: `${n} flagged message${n === 1 ? "" : "s"} in Gmail`, tone: "action" });
+    // Neither raw count belongs here: total unread is noise on a real
+    // inbox, and even the "important/starred" estimate compounds over
+    // years of never-cleared mail into a number too big to act on. What's
+    // actually actionable is the short, curated list the Gmail panel
+    // already shows — so Now reflects that list's size, not a live count.
+    if (commandData.gmail.messages.length) {
+      const n = commandData.gmail.messages.length;
+      items.push({ text: `${n} message${n === 1 ? "" : "s"} need a look in Gmail`, tone: "action" });
     }
   } else if (commandData.gmail.status === "not_connected") {
     items.push({ text: "Gmail not connected", tone: "muted" });
