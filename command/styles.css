@@ -179,6 +179,10 @@ input:focus-visible {
 
 .icon-btn:hover { color: var(--ink); background: var(--surface-strong); }
 
+.focus-pill { font-family: var(--font-mono); cursor: pointer; }
+.focus-pill-running { color: var(--accent-strong); border-color: rgba(163, 151, 224, 0.4); }
+.focus-pill-done { color: var(--live); border-color: rgba(127, 216, 160, 0.4); }
+
 .greeting-block { margin-bottom: var(--space-6); }
 
 .greeting {
@@ -368,6 +372,42 @@ input:focus-visible {
 .todo-delete:hover { color: #e08a8a; }
 
 .todo-empty { font-size: 13px; color: var(--ink-faint); padding: 6px 0; }
+
+/* ---------- notes ---------- */
+
+.notes-panel { margin-bottom: var(--space-4); }
+
+.notes-add-row { display: flex; gap: 8px; margin-bottom: var(--space-3); }
+
+.notes-add-row input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--surface-border-soft);
+  font-size: 13.5px;
+}
+
+.notes-list { list-style: none; margin: 0; padding: 0; }
+
+.notes-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--surface-border-soft);
+}
+
+.notes-row:first-child { border-top: none; }
+
+.notes-text { flex: 1; font-size: 13.5px; }
+.notes-time { font-size: 11px; color: var(--ink-faint); font-family: var(--font-mono); white-space: nowrap; }
+
+.notes-delete { color: var(--ink-faint); opacity: 0; transition: opacity 0.15s var(--ease); }
+.notes-row:hover .notes-delete { opacity: 1; }
+.notes-delete:hover { color: #e08a8a; }
+
+.notes-empty { font-size: 13px; color: var(--ink-faint); padding: 6px 0; }
 
 .completed-details { margin-top: var(--space-2); }
 .completed-details summary {

@@ -300,6 +300,117 @@
     });
   }
 
+  // ---------- notes ----------
+
+  function renderNotes() {
+    const list = el("notesList");
+    if (!list) return;
+    list.innerHTML = "";
+    if (!commandData.notes.length) {
+      const li = document.createElement("li");
+      li.className = "notes-empty";
+      li.textContent = "Nothing jotted down.";
+      list.appendChild(li);
+      return;
+    }
+    commandData.notes.forEach((note) => {
+      const li = document.createElement("li");
+      li.className = "notes-row";
+      const time = new Date(note.createdAt).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+      li.innerHTML = `
+        <span class="notes-text">${escapeHtmlCmd(note.text)}</span>
+        <span class="notes-time">${time}</span>
+        <button class="notes-delete" data-delete-note-id="${note.id}" aria-label="Delete note">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>`;
+      list.appendChild(li);
+    });
+  }
+
+  const newNoteInput = el("newNoteInput");
+  const addNoteBtn = el("addNoteBtn");
+
+  function submitNewNote() {
+    if (!newNoteInput.value.trim()) return;
+    addNote(newNoteInput.value);
+    newNoteInput.value = "";
+    renderNotes();
+  }
+
+  if (addNoteBtn) addNoteBtn.addEventListener("click", submitNewNote);
+  if (newNoteInput) {
+    newNoteInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") submitNewNote();
+    });
+  }
+
+  document.addEventListener("click", (e) => {
+    const delNoteBtn = e.target.closest("[data-delete-note-id]");
+    if (delNoteBtn) {
+      deleteNote(delNoteBtn.dataset.deleteNoteId);
+      renderNotes();
+    }
+  });
+
+  // ---------- focus timer ----------
+
+  const FOCUS_DURATION_SECONDS = 25 * 60;
+  let focusEndTime = null;
+  let focusInterval = null;
+
+  function renderFocus() {
+    const btn = el("focusBtn");
+    if (!btn) return;
+    if (!focusEndTime) {
+      btn.textContent = "Focus";
+      btn.className = "clock-pill focus-pill";
+      btn.title = "Start a 25-minute focus timer";
+      return;
+    }
+    const remainingMs = focusEndTime - Date.now();
+    if (remainingMs <= 0) {
+      btn.textContent = "Done";
+      btn.className = "clock-pill focus-pill focus-pill-done";
+      btn.title = "Focus session complete — click to reset";
+      return;
+    }
+    const totalSeconds = Math.ceil(remainingMs / 1000);
+    const mm = Math.floor(totalSeconds / 60);
+    const ss = totalSeconds % 60;
+    btn.textContent = `${mm}:${String(ss).padStart(2, "0")}`;
+    btn.className = "clock-pill focus-pill focus-pill-running";
+    btn.title = "Focus session running — click to stop";
+  }
+
+  function startFocus() {
+    focusEndTime = Date.now() + FOCUS_DURATION_SECONDS * 1000;
+    renderFocus();
+    focusInterval = setInterval(renderFocus, 1000);
+  }
+
+  function stopFocus() {
+    clearInterval(focusInterval);
+    focusInterval = null;
+    focusEndTime = null;
+    renderFocus();
+  }
+
+  const focusBtn = el("focusBtn");
+  if (focusBtn) {
+    focusBtn.addEventListener("click", () => {
+      if (focusEndTime) {
+        stopFocus();
+      } else {
+        startFocus();
+      }
+    });
+  }
+
   // ---------- weather ----------
 
   function renderWeather() {
@@ -631,6 +742,7 @@
     renderGreeting();
     renderTodos();
     renderQuickLaunch();
+    renderNotes();
     renderWeather();
     renderAccounts();
     renderCalendar();
@@ -643,6 +755,7 @@
   async function init() {
     loadTasks();
     loadLinks();
+    loadNotes();
 
     const signedIn = initAuthGate();
     renderAll();

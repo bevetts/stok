@@ -39,6 +39,7 @@
     <header class="topbar">
       <div class="wordmark">BLAKE <span class="wordmark-thin">COMMAND</span></div>
       <div class="status-cluster">
+        <button class="clock-pill focus-pill" id="focusBtn" title="Start a 25-minute focus timer">Focus</button>
         <span class="clock-pill" id="headerClock">--:--</span>
         <button class="icon-btn" id="fullscreenBtn" aria-label="Fullscreen" title="Fullscreen">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3H4v4M16 3h4v4M8 21H4v-4M16 21h4v-4"/></svg>
@@ -98,6 +99,17 @@
         <div id="gmailBody"></div>
       </section>
     </div>
+
+    <section class="panel notes-panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Notes</h2>
+      </div>
+      <div class="notes-add-row">
+        <input type="text" id="newNoteInput" placeholder="Jot something down…" />
+        <button id="addNoteBtn" class="pill-btn-sm">Add</button>
+      </div>
+      <ul class="notes-list" id="notesList"></ul>
+    </section>
 
     <section class="panel quicklaunch-panel">
       <div class="panel-head">
