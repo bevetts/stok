@@ -422,11 +422,21 @@
           <span class="gmail-sender">${dot}${escapeHtmlCmd(msg.sender)}</span>
           <span class="gmail-subject">${escapeHtmlCmd(msg.subject)}</span>
         </span>
-        <a class="text-link" href="${escapeHtmlCmd(msg.link)}" target="_blank" rel="noopener noreferrer">Open</a>`;
+        <a class="text-link" href="${escapeHtmlCmd(msg.link)}" target="_blank" rel="noopener noreferrer">Open</a>
+        <button class="gmail-dismiss" data-dismiss-message-id="${escapeHtmlCmd(msg.id)}" aria-label="Dismiss">&times;</button>`;
       ul.appendChild(li);
     });
     body.appendChild(ul);
   }
+
+  document.addEventListener("click", (e) => {
+    const dismissBtn = e.target.closest("[data-dismiss-message-id]");
+    if (!dismissBtn) return;
+    dismissMessage(dismissBtn.dataset.dismissMessageId);
+    renderGmail();
+    renderAttention();
+    renderNow();
+  });
 
   // ---------- connected accounts ----------
 
@@ -510,8 +520,9 @@
         status: "connected",
         unreadCount: payload.gmail ? payload.gmail.unreadCount : 0,
         importantUnreadCount: payload.gmail ? payload.gmail.importantUnreadCount : 0,
-        messages: payload.gmail ? payload.gmail.messages : [],
+        messages: (payload.gmail ? payload.gmail.messages : []).filter((m) => !isDismissed(m.id)),
       };
+      commandData.tomorrow = payload.tomorrow || null;
     } catch (err) {
       console.warn("Blake Command Center: couldn't load Google data.", err);
       commandData.calendar.status = "error";
@@ -557,7 +568,12 @@
     const body = el("briefingBody");
     if (!body) return;
     const w = commandData.weather;
+    const t = commandData.tomorrow;
     body.innerHTML = `
+      ${t ? `<div class="briefing-row">
+        <span>Tomorrow</span>
+        <span>${escapeHtmlCmd(t.title)} at ${escapeHtmlCmd(t.displayTime)}</span>
+      </div>` : ""}
       <div class="briefing-row">
         <span>Weather</span>
         <span>${w ? `${w.currentTemp}° · ${escapeHtmlCmd(w.condition)}` : "Unavailable"}</span>

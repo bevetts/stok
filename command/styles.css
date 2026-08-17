@@ -444,6 +444,17 @@ input:focus-visible {
 .gmail-sender { font-weight: 500; }
 .gmail-subject { color: var(--ink-dim); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.gmail-dismiss {
+  color: var(--ink-faint);
+  font-size: 15px;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+}
+.gmail-row:hover .gmail-dismiss { opacity: 1; }
+.gmail-dismiss:hover { color: #e08a8a; }
+
 /* ---------- weather ---------- */
 
 .weather-main { display: flex; align-items: baseline; gap: 10px; }

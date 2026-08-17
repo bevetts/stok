@@ -103,6 +103,37 @@ async function fetchCalendarEvents(accessToken: string, accountEmail: string) {
     });
 }
 
+async function fetchTomorrowFirstEvent(accessToken: string, accountEmail: string) {
+  const now = new Date();
+  const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+  const tomorrowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 59);
+
+  const params = new URLSearchParams({
+    timeMin: tomorrowStart.toISOString(),
+    timeMax: tomorrowEnd.toISOString(),
+    singleEvents: "true",
+    orderBy: "startTime",
+    maxResults: "1",
+  });
+
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) throw new Error(`Tomorrow calendar fetch failed: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  const first = (data.items || []).find((e: any) => e.status !== "cancelled");
+  if (!first) return null;
+
+  const isAllDay = !!first.start?.date;
+  const start = isAllDay ? new Date(`${first.start.date}T00:00:00`) : new Date(first.start.dateTime);
+  return {
+    account: accountEmail,
+    title: first.summary || "(No title)",
+    displayTime: isAllDay ? "All day" : start.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
+    start: start.toISOString(),
+  };
+}
+
 async function fetchGmailSummary(accessToken: string, accountEmail: string) {
   const authHeader = { Authorization: `Bearer ${accessToken}` };
 
@@ -197,7 +228,7 @@ Deno.serve(async (req) => {
   const { data: accounts, error: accountsErr } = await supabase.from("blake_google_accounts").select("*");
   if (accountsErr) return jsonResponse({ error: "Failed to load connected accounts" }, 500);
   if (!accounts || !accounts.length) {
-    return jsonResponse({ accounts: [], calendar: [], gmail: { unreadCount: 0, importantUnreadCount: 0, messages: [] } });
+    return jsonResponse({ accounts: [], calendar: [], gmail: { unreadCount: 0, importantUnreadCount: 0, messages: [] }, tomorrow: null });
   }
 
   const results = await Promise.all(
@@ -216,14 +247,15 @@ Deno.serve(async (req) => {
             })
             .eq("email", account.email);
         }
-        const [calendar, gmail] = await Promise.all([
+        const [calendar, gmail, tomorrowFirst] = await Promise.all([
           fetchCalendarEvents(accessToken, account.email),
           fetchGmailSummary(accessToken, account.email),
+          fetchTomorrowFirstEvent(accessToken, account.email),
         ]);
-        return { email: account.email, ok: true, calendar, gmail };
+        return { email: account.email, ok: true, calendar, gmail, tomorrowFirst };
       } catch (err) {
         console.error(`blake-google-data: failed for ${account.email}:`, err);
-        return { email: account.email, ok: false, calendar: [] as any[], gmail: { unreadCount: 0, importantUnreadCount: 0, messages: [] as any[] } };
+        return { email: account.email, ok: false, calendar: [] as any[], gmail: { unreadCount: 0, importantUnreadCount: 0, messages: [] as any[] }, tomorrowFirst: null as any };
       }
     })
   );
@@ -254,10 +286,18 @@ Deno.serve(async (req) => {
     return s !== 0 ? s : b.internalDate - a.internalDate;
   });
 
+  // Earliest first event across all accounts tomorrow — a one-line preview,
+  // not a full agenda, so only the single soonest event across everyone's
+  // calendar is worth surfacing.
+  const tomorrowCandidates = results.map((r: any) => r.tomorrowFirst).filter(Boolean) as any[];
+  tomorrowCandidates.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  const tomorrow = tomorrowCandidates[0] || null;
+
   return jsonResponse({
     accounts: accounts.map((a: any) => ({ email: a.email, label: a.label })),
     accountErrors: results.filter((r) => !r.ok).map((r) => r.email),
     calendar,
     gmail: { unreadCount, importantUnreadCount, messages: allMessages.slice(0, 6) },
+    tomorrow,
   });
 });
