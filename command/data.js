@@ -17,7 +17,7 @@ const commandData = {
   tasks: [],
   links: [],
   calendar: { status: "not_connected", events: [] }, // status: "not_connected" | "loading" | "connected" | "error"
-  gmail: { status: "not_connected", unreadCount: null, messages: [] },
+  gmail: { status: "not_connected", unreadCount: null, importantUnreadCount: null, messages: [] },
   accounts: [], // connected Google accounts, e.g. [{ email, label }]
   accountErrors: [], // emails whose fetch failed this round (token revoked, etc.)
 };
@@ -157,8 +157,13 @@ function getNowItems() {
   }
 
   if (commandData.gmail.status === "connected") {
-    if (commandData.gmail.unreadCount) {
-      items.push({ text: `${commandData.gmail.unreadCount} unread in Gmail`, tone: "info" });
+    // Raw unread count is noise on a real inbox (years of unread marketing
+    // mail) — the starred/important count is the actual "needs a look"
+    // signal, so that's what Now shows. The raw total still appears in the
+    // Gmail panel itself for context.
+    if (commandData.gmail.importantUnreadCount) {
+      const n = commandData.gmail.importantUnreadCount;
+      items.push({ text: `${n} flagged message${n === 1 ? "" : "s"} in Gmail`, tone: "action" });
     }
   } else if (commandData.gmail.status === "not_connected") {
     items.push({ text: "Gmail not connected", tone: "muted" });
