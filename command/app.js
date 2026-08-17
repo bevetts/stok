@@ -323,6 +323,11 @@
     renderWeather();
   }
 
+  async function loadSports() {
+    commandData.sports = await fetchSportsLines();
+    renderBriefing();
+  }
+
   // ---------- calendar (Google) ----------
 
   function renderCalendar() {
@@ -569,6 +574,23 @@
     if (!body) return;
     const w = commandData.weather;
     const t = commandData.tomorrow;
+    const sports = commandData.sports || [];
+    const weekCount = getTasksCompletedThisWeek();
+
+    const sportsRows = sports.length
+      ? sports
+          .map(
+            (s) => `<div class="briefing-row${s.line ? "" : " briefing-row-placeholder"}">
+        <span>${escapeHtmlCmd(s.team)}</span>
+        <span>${s.line ? escapeHtmlCmd(s.line) : '<span class="badge badge-placeholder">unavailable</span>'}</span>
+      </div>`
+          )
+          .join("")
+      : `<div class="briefing-row briefing-row-placeholder">
+        <span>Sports</span>
+        <span class="badge badge-placeholder">loading…</span>
+      </div>`;
+
     body.innerHTML = `
       ${t ? `<div class="briefing-row">
         <span>Tomorrow</span>
@@ -578,10 +600,11 @@
         <span>Weather</span>
         <span>${w ? `${w.currentTemp}° · ${escapeHtmlCmd(w.condition)}` : "Unavailable"}</span>
       </div>
-      <div class="briefing-row briefing-row-placeholder">
-        <span>Sports</span>
-        <span class="badge badge-placeholder">not connected</span>
+      <div class="briefing-row">
+        <span>This week</span>
+        <span>${weekCount} task${weekCount === 1 ? "" : "s"} completed</span>
       </div>
+      ${sportsRows}
       <div class="briefing-row briefing-row-placeholder">
         <span>News</span>
         <span class="badge badge-placeholder">not connected</span>
@@ -625,6 +648,7 @@
     renderAll();
 
     if (signedIn) {
+      loadSports(); // independent of Google data — don't block on it, it re-renders Briefing itself when done
       await loadWeather();
       await loadGoogleData();
       renderAttention();

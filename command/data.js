@@ -22,6 +22,7 @@ const commandData = {
   accounts: [], // connected Google accounts, e.g. [{ email, label }]
   accountErrors: [], // emails whose fetch failed this round (token revoked, etc.)
   tomorrow: null, // { title, displayTime, account } | null — first event tomorrow
+  sports: [], // [{ team, line }] — line is null if that team's fetch failed
 };
 
 // Small fixed palette, cycled by connection order — good enough to tell
@@ -83,6 +84,11 @@ function getCompletedTasks() {
   return commandData.tasks
     .filter((t) => t.done)
     .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+}
+
+function getTasksCompletedThisWeek() {
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  return commandData.tasks.filter((t) => t.done && t.completedAt && t.completedAt >= weekAgo).length;
 }
 
 // ---------- quick launch links ----------
